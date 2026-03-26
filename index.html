@@ -17,10 +17,15 @@ textarea,input{-webkit-user-select:text;user-select:text}
 textarea::placeholder,input::placeholder{color:rgba(255,255,255,.2)}
 ::-webkit-scrollbar{display:none}
 @keyframes fadeUp{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 @keyframes pulseRing{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.6);opacity:0}}
 @keyframes orbFloat{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-10px);opacity:.7}}
 @keyframes waveBar{0%{height:3px}100%{height:22px}}
 @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+.modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:fadeIn .2s ease}
+.modal-sheet{position:fixed;bottom:0;left:0;right:0;z-index:201;background:#0e1225;border-radius:24px 24px 0 0;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease;padding-bottom:env(safe-area-inset-bottom,20px)}
 </style>
 </head>
 <body>
@@ -30,19 +35,21 @@ textarea::placeholder,input::placeholder{color:rgba(255,255,255,.2)}
 <script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 <script type="text/babel">
 const{useState,useEffect,useRef}=React;
-const pad=n=>String(n).padStart(2,"0"),now=()=>new Date(),dk=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pad=n=>String(n).padStart(2,"0"),now=()=>new Date(),dkOf=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const WK=["日","一","二","三","四","五","六"];
 const fmtD=d=>`${d.getMonth()+1}月${d.getDate()}日 · 星期${WK[d.getDay()]}`;
 const weekOf=d=>{const s=new Date(d);s.setDate(s.getDate()-s.getDay());return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x})};
 const monthDays=d=>{const y=d.getFullYear(),m=d.getMonth(),f=new Date(y,m,1),l=new Date(y,m+1,0),r=[];for(let i=0;i<f.getDay();i++)r.push(null);for(let i=1;i<=l.getDate();i++)r.push(new Date(y,m,i));return r};
-const streak=es=>{const ds=new Set(es.map(e=>e.dk));let n=0,d=new Date();if(!ds.has(dk(d)))d.setDate(d.getDate()-1);while(ds.has(dk(d))){n++;d.setDate(d.getDate()-1)}return n};
+const streak=es=>{const ds=new Set(es.map(e=>e.dk));let n=0,d=new Date();if(!ds.has(dkOf(d)))d.setDate(d.getDate()-1);while(ds.has(dkOf(d))){n++;d.setDate(d.getDate()-1)}return n};
 const LS={g:(k,f)=>{try{return JSON.parse(localStorage.getItem(k))||f}catch{return f}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 const TAGS=[{e:"🌊",l:"水"},{e:"🕊️",l:"飞翔"},{e:"🏃",l:"追逐"},{e:"🌀",l:"坠落"},{e:"👥",l:"人群"},{e:"🏠",l:"家"},{e:"🌌",l:"宇宙"},{e:"🐾",l:"动物"},{e:"🔮",l:"神秘"},{e:"😨",l:"恐惧"},{e:"💛",l:"温暖"},{e:"🎭",l:"荒诞"}];
 
+/* Wake Lock */
 let _wl=null;
 async function wakeLock(){try{if("wakeLock"in navigator)_wl=await navigator.wakeLock.request("screen")}catch{}}
-function wakeRelease(){if(_wl){try{_wl.release()}catch{}_wl=null}}
+function wakeRelease(){if(_wl){try{_wl.release()}catch{};_wl=null}}
 
+/* Icons */
 const Ic={
   mic:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="1" width="6" height="14" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="23" x2="12" y2="19"/></svg>,
   pen:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>,
@@ -54,93 +61,177 @@ const Ic={
   eye:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   cal:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   dl:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  video:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="2" y="4" width="15" height="16" rx="2"/><polygon points="22 8 17 12 22 16"/></svg>,
+  x:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  expand:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>,
 };
 
 const BG=()=><div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}><div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 25% 15%,rgba(30,40,90,.3) 0%,transparent 55%),radial-gradient(ellipse at 75% 85%,rgba(20,30,70,.2) 0%,transparent 50%)"}}/><div style={{position:"absolute",top:"12%",right:"10%",width:180,height:180,borderRadius:"50%",background:"radial-gradient(circle,rgba(99,102,241,.06) 0%,transparent 70%)",animation:"orbFloat 10s ease-in-out infinite"}}/></div>;
 const Toast=({msg})=>msg?<div style={{position:"fixed",top:"env(safe-area-inset-top,50px)",left:16,right:16,zIndex:999,textAlign:"center",padding:"13px 18px",borderRadius:16,background:"rgba(99,102,241,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",fontSize:14,fontWeight:500,animation:"fadeUp .3s ease"}}>{msg}</div>:null;
-const B=({children,style,...p})=><button {...p} style={{border:"none",cursor:"pointer",fontFamily:"inherit",...style}}>{children}</button>;
+const Bt=({children,style,...p})=><button {...p} style={{border:"none",cursor:"pointer",fontFamily:"inherit",...style}}>{children}</button>;
 
-/* ══ HOME ══ */
-function Home({entries:es,onRec,onSet,onEntry,onMonth}){
+/* ══════════════════════════════════════════════
+   EDIT MODAL — full screen editor for transcript
+   ══════════════════════════════════════════════ */
+function EditModal({text,onSave,onClose}){
+  const[val,setVal]=useState(text);
+  const ta=useRef();
+  useEffect(()=>{if(ta.current){ta.current.focus();ta.current.setSelectionRange(val.length,val.length)}},[]);
+
+  return <>
+    <div className="modal-overlay" onClick={onClose}/>
+    <div className="modal-sheet">
+      <div style={{padding:"16px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:17,fontWeight:700}}>编辑梦境文字</span>
+        <Bt onClick={onClose} style={{background:"none",color:"rgba(255,255,255,.4)",padding:4}}>{Ic.x(22)}</Bt>
+      </div>
+      <div style={{padding:"12px 20px"}}>
+        <textarea ref={ta} value={val} onChange={e=>setVal(e.target.value)}
+          style={{width:"100%",minHeight:250,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:16,padding:18,color:"rgba(255,255,255,.85)",fontSize:16,lineHeight:1.8,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.2)",marginTop:6,textAlign:"right"}}>{val.length} 字</div>
+      </div>
+      <div style={{padding:"8px 20px 20px",display:"flex",gap:10}}>
+        <Bt onClick={onClose} style={{flex:1,padding:15,borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.5)",fontSize:15,fontWeight:500}}>取消</Bt>
+        <Bt onClick={()=>onSave(val.trim())} style={{flex:2,padding:15,borderRadius:16,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:15,fontWeight:600,boxShadow:"0 4px 20px rgba(99,102,241,.3)"}}>确认保存</Bt>
+      </div>
+    </div>
+  </>;
+}
+
+/* ══════════════════════════════════════════════
+   VIDEO STATUS — progress component for entries
+   ══════════════════════════════════════════════ */
+function VideoStatus({entry,cfg,onUpdate}){
+  const st=entry.status;
+  if(!entry.taskId&&!st) return (
+    cfg.apiUrl&&cfg.apiKey?
+    <Bt onClick={e=>{e.stopPropagation();onUpdate(entry)}} style={{marginTop:10,padding:"10px 16px",borderRadius:12,background:"rgba(99,102,241,.1)",border:"1px solid rgba(99,102,241,.2)",color:"#a5b4fc",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:6,width:"100%",justifyContent:"center"}}>
+      {Ic.video(15)} 生成梦境视频
+    </Bt>
+    :null
+  );
+
+  const colors={pending:"#64748b",submitting:"#f59e0b",submitted:"#3b82f6",generating:"#8b5cf6",completed:"#10b981",failed:"#ef4444"};
+  const labels={pending:"排队中...",submitting:"正在提交...",submitted:"即梦生成中...",generating:"渲染中...",completed:"视频已生成 ✓",failed:"生成失败"};
+  const c=colors[st]||"#64748b";
+  const isActive=["pending","submitting","submitted","generating"].includes(st);
+
+  return <div style={{marginTop:10,padding:"10px 14px",borderRadius:12,background:`${c}12`,border:`1px solid ${c}25`,display:"flex",alignItems:"center",gap:8}} onClick={e=>e.stopPropagation()}>
+    {isActive&&<span style={{width:8,height:8,borderRadius:4,border:`2px solid ${c}`,borderTopColor:"transparent",animation:"spin .8s linear infinite",display:"inline-block",flexShrink:0}}/>}
+    {st==="completed"&&<span style={{fontSize:14}}>🎬</span>}
+    {st==="failed"&&<span style={{fontSize:14}}>❌</span>}
+    <span style={{fontSize:13,color:c,fontWeight:600,flex:1}}>{labels[st]||st}</span>
+    {st==="completed"&&entry.videoUrl&&<span style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>点击查看</span>}
+    {st==="failed"&&<Bt onClick={()=>onUpdate(entry)} style={{background:"none",color:"#818cf8",fontSize:12,fontWeight:600,padding:"2px 8px"}}>重试</Bt>}
+  </div>;
+}
+
+/* ══════════════════════════════════════════════
+   HOME
+   ══════════════════════════════════════════════ */
+function Home({entries:es,onRec,onSet,onEntry,onMonth,cfg,onGenVideo}){
   const[sel,setSel]=useState(new Date());
-  const wk=weekOf(sel),td=dk(now()),sd=dk(sel);
+  const wk=weekOf(sel),td=dkOf(now()),sd=dkOf(sel);
   const dayE=es.filter(e=>e.dk===sd),bd={};es.forEach(e=>{bd[e.dk]=(bd[e.dk]||0)+1});
-  const stk=streak(es),lucN=es.filter(e=>e.isLucid).length,lat=dayE[0],hr=now().getHours();
+  const stk=streak(es),hr=now().getHours();
 
   return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1225 50%,#0c1428)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:100}}><BG/>
   <div style={{position:"relative",zIndex:2}}>
+    {/* Header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px 0"}}>
       <div>
         <h1 style={{fontSize:26,fontWeight:800,margin:0,letterSpacing:-.5,color:"rgba(255,255,255,.92)"}}>Today</h1>
         {stk>0&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:4}}><span style={{fontSize:13}}>🔥</span><span style={{fontSize:13,fontWeight:700,color:"#fbbf24"}}>{stk}</span><span style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>天连续记录</span></div>}
       </div>
       <div style={{display:"flex",gap:6}}>
-        <B onClick={onMonth} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.cal(16)}</B>
-        <B onClick={onSet} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.gear(16)}</B>
+        <Bt onClick={onMonth} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.cal(16)}</Bt>
+        <Bt onClick={onSet} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.gear(16)}</Bt>
       </div>
     </div>
 
+    {/* Calendar */}
     <div style={{margin:"16px 14px 0",padding:"10px 4px 8px",borderRadius:18,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.04)"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center"}}>
-        {wk.map((d,i)=>{const k=dk(d),iS=k===sd,iT=k===td,h=bd[k]>0;return(
-          <B key={i} onClick={()=>setSel(new Date(d))} style={{background:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"3px 0",color:"inherit"}}>
+        {wk.map((d,i)=>{const k=dkOf(d),iS=k===sd,iT=k===td,h=bd[k]>0;return(
+          <Bt key={i} onClick={()=>setSel(new Date(d))} style={{background:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"3px 0",color:"inherit"}}>
             <span style={{fontSize:11,fontWeight:500,color:iS?"rgba(255,255,255,.85)":"rgba(255,255,255,.25)"}}>{WK[i]}</span>
             <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:600,background:iS?"linear-gradient(135deg,#6366f1,#818cf8)":"transparent",color:iS?"#fff":iT?"#818cf8":"rgba(255,255,255,.55)",transition:"all .2s"}}>{d.getDate()}</span>
             <span style={{width:4,height:4,borderRadius:2,background:h?"#818cf8":"transparent"}}/>
-          </B>
+          </Bt>
         )})}
       </div>
     </div>
 
-    <div style={{padding:"14px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <span style={{fontSize:14,color:"rgba(255,255,255,.4)",fontWeight:500}}>{fmtD(sel)}</span>
-      {lucN>0&&<span style={{fontSize:12,color:"#34d399",display:"flex",alignItems:"center",gap:4}}>{Ic.eye(13)} {lucN}次清醒梦</span>}
-    </div>
+    <div style={{padding:"14px 20px 8px"}}><span style={{fontSize:14,color:"rgba(255,255,255,.4)",fontWeight:500}}>{fmtD(sel)}</span></div>
 
-    <div onClick={lat?()=>onEntry(lat):undefined} style={{margin:"0 14px",borderRadius:22,overflow:"hidden",border:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.02)",cursor:lat?"pointer":"default"}}>
-      <div style={{height:200,position:"relative",background:"linear-gradient(135deg,#0a1628,#1a1040 40%,#0f2847 70%,#0a1628)",overflow:"hidden"}}>
-        {Array.from({length:8}).map((_,i)=><div key={i} style={{position:"absolute",width:2,height:2,borderRadius:1,background:"rgba(180,200,255,.25)",top:`${15+Math.sin(i*1.7)*35}%`,left:`${10+Math.cos(i*2.3)*40+40}%`}}/>)}
-        {lat?.videoUrl?<><video src={lat.videoUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} muted playsInline/><div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.2)"}}><div style={{width:48,height:48,borderRadius:24,background:"rgba(0,0,0,.4)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",paddingLeft:2}}>{Ic.play(20)}</div></div></>
-        :<div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontSize:52,opacity:.1}}>🌙</span>
-          {lat?.taskId&&lat.status!=="completed"&&lat.status!=="failed"&&<span style={{marginTop:8,fontSize:12,color:"rgba(255,255,255,.3)",display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:4,border:"2px solid rgba(99,102,241,.5)",borderTopColor:"transparent",animation:"spin .8s linear infinite",display:"inline-block"}}/>视频生成中...</span>}
+    {/* Dream entries for the day */}
+    <div style={{padding:"0 14px"}}>
+      {dayE.map(en=><div key={en.id} onClick={()=>onEntry(en)} style={{background:"rgba(255,255,255,.02)",borderRadius:20,overflow:"hidden",border:"1px solid rgba(255,255,255,.05)",marginBottom:12,cursor:"pointer"}}>
+        {/* Video preview if available */}
+        {en.videoUrl&&<div style={{height:180,position:"relative",background:"#000"}}>
+          <video src={(en.videoUrl.startsWith("http")?en.videoUrl:`${cfg.apiUrl}${en.videoUrl}`)} style={{width:"100%",height:"100%",objectFit:"cover"}} muted playsInline/>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.2)"}}><div style={{width:48,height:48,borderRadius:24,background:"rgba(0,0,0,.4)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",paddingLeft:2}}>{Ic.play(20)}</div></div>
         </div>}
-      </div>
-      <div style={{padding:"16px 18px 18px"}}>
-        {lat?<><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:15,fontWeight:700,color:"rgba(255,255,255,.85)"}}>梦境片段</span>{lat.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div><span style={{fontSize:12,color:"rgba(255,255,255,.25)"}}>{lat.time}</span></div>
-        <p style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.65,margin:0,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{lat.text}</p>
-        {lat.tags?.length>0&&<div style={{marginTop:10,display:"flex",gap:4}}>{lat.tags.map(t=><span key={t} style={{fontSize:15}}>{t}</span>)}</div>}</>
-        :<><span style={{fontSize:15,fontWeight:600,color:"rgba(255,255,255,.35)"}}>这一天还没有记录</span><p style={{fontSize:13,color:"rgba(255,255,255,.2)",marginTop:4,lineHeight:1.5}}>醒来时记得把最清晰的画面记录下来。</p></>}
-      </div>
-    </div>
+        <div style={{padding:"14px 16px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:15,fontWeight:700,color:"rgba(255,255,255,.85)"}}>梦境片段</span>
+              {en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}
+            </div>
+            <span style={{fontSize:12,color:"rgba(255,255,255,.25)"}}>{en.time}</span>
+          </div>
+          <p style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.65,margin:0,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{en.text}</p>
+          {en.tags?.length>0&&<div style={{marginTop:8,display:"flex",gap:4}}>{en.tags.map(t=><span key={t} style={{fontSize:15}}>{t}</span>)}</div>}
+          <VideoStatus entry={en} cfg={cfg} onUpdate={onGenVideo}/>
+        </div>
+      </div>)}
 
-    {dayE.length>1&&<div style={{padding:"10px 14px 0"}}>{dayE.slice(1).map(en=><div key={en.id} onClick={()=>onEntry(en)} style={{padding:"14px 16px",borderRadius:16,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:8,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,.6)"}}>{en.time}</span>{en.isLucid&&<span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:6,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div>{en.tags?.length>0&&<div style={{display:"flex",gap:2}}>{en.tags.slice(0,3).map(t=><span key={t} style={{fontSize:13}}>{t}</span>)}</div>}</div><p style={{fontSize:12,color:"rgba(255,255,255,.3)",margin:"6px 0 0",display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{en.text}</p></div>)}</div>}
+      {dayE.length===0&&<div style={{textAlign:"center",padding:"40px 14px",borderRadius:20,background:"rgba(255,255,255,.015)",border:"1px solid rgba(255,255,255,.03)"}}>
+        <div style={{background:"linear-gradient(135deg,#0a1628,#1a1040 40%,#0f2847 70%,#0a1628)",borderRadius:16,height:160,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+          {Array.from({length:6}).map((_,i)=><div key={i} style={{position:"absolute",width:2,height:2,borderRadius:1,background:"rgba(180,200,255,.2)"}}/>)}
+          <span style={{fontSize:52,opacity:.12}}>🌙</span>
+        </div>
+        <span style={{fontSize:15,fontWeight:600,color:"rgba(255,255,255,.3)"}}>这一天还没有记录</span>
+        <p style={{fontSize:13,color:"rgba(255,255,255,.18)",marginTop:4}}>醒来时记得把最清晰的画面记录下来。</p>
+      </div>}
+    </div>
 
     {hr>=20&&<div style={{margin:"14px 14px 0",padding:"15px 18px",borderRadius:18,background:"linear-gradient(135deg,rgba(99,102,241,.04),rgba(139,92,246,.02))",border:"1px solid rgba(99,102,241,.07)"}}><div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:5}}>💭 入睡前提醒</div><div style={{fontSize:13,color:"rgba(255,255,255,.28)",lineHeight:1.6}}>躺下后对自己说："今晚我会意识到自己在做梦。"</div></div>}
   </div>
 
+  {/* Bottom bar */}
   <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,paddingBottom:"env(safe-area-inset-bottom,16px)",background:"linear-gradient(transparent,rgba(6,10,20,.95) 30%)"}}>
     <div style={{display:"flex",gap:10,padding:"16px 16px 8px",justifyContent:"center"}}>
-      <B onClick={()=>onRec("voice")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.mic(17)} 语音</B>
-      <B onClick={()=>onRec("text")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.pen(16)} 文字</B>
+      <Bt onClick={()=>onRec("voice")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.mic(17)} 语音</Bt>
+      <Bt onClick={()=>onRec("text")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.pen(16)} 文字</Bt>
     </div>
   </div>
   </div>;
 }
 
-/* ══ RECORD ══ */
+/* ══════════════════════════════════════════════
+   RECORD — with persistent transcript + edit modal
+   ══════════════════════════════════════════════ */
 function Rec({mode:im,onDone,onBack}){
   const[mode,setMode]=useState(im||"voice");
   const[rec,setRec]=useState(false);
   const[sec,setSec]=useState(0);
-  const[txt,setTxt]=useState("");
-  const[live,setLive]=useState("");
+  // Key fix: transcript stored in ref AND state, never lost
+  const savedTxt=useRef(""); // accumulated finalized text
+  const[displayTxt,setDisplayTxt]=useState(""); // what user sees (saved + current session)
+  const[liveTxt,setLiveTxt]=useState(""); // interim (gray) text
   const[typed,setTyped]=useState("");
+  const[showEdit,setShowEdit]=useState(false);
   const tmr=useRef();const srr=useRef();const ta=useRef();
-  const recRef=useRef(false);
+  const recActive=useRef(false);
   const sessFinal=useRef("");
 
-  useEffect(()=>{if(rec){const t0=Date.now();tmr.current=setInterval(()=>setSec(Math.floor((Date.now()-t0)/1000)),250)}else clearInterval(tmr.current);return()=>clearInterval(tmr.current)},[rec]);
+  useEffect(()=>{
+    if(rec){const t0=Date.now()-sec*1000;tmr.current=setInterval(()=>setSec(Math.floor((Date.now()-t0)/1000)),250)}
+    else clearInterval(tmr.current);
+    return()=>clearInterval(tmr.current);
+  },[rec]);
+
   useEffect(()=>{if(mode==="text"&&ta.current)setTimeout(()=>ta.current.focus(),150)},[mode]);
   useEffect(()=>()=>{wakeRelease();if(srr.current)try{srr.current.abort()}catch{}},[]);
 
@@ -151,48 +242,137 @@ function Rec({mode:im,onDone,onBack}){
     if(!SR)return;
     const r=new SR();r.lang="zh-CN";r.continuous=true;r.interimResults=true;
     sessFinal.current="";
-    r.onresult=e=>{let interim="";sessFinal.current="";for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)sessFinal.current+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript}setLive(interim)};
+    r.onresult=e=>{
+      let interim="";sessFinal.current="";
+      for(let i=0;i<e.results.length;i++){
+        if(e.results[i].isFinal)sessFinal.current+=e.results[i][0].transcript;
+        else interim+=e.results[i][0].transcript;
+      }
+      setLiveTxt(interim);
+      // Update display: saved + this session's final + interim
+      setDisplayTxt(savedTxt.current+(savedTxt.current&&sessFinal.current?" ":"")+sessFinal.current);
+    };
     r.onerror=()=>{};
     r.onend=()=>{
-      if(sessFinal.current){setTxt(p=>p+(p?" ":"")+sessFinal.current);sessFinal.current=""}
-      if(recRef.current)try{startSR()}catch{}
+      // Commit session finals to saved
+      if(sessFinal.current){
+        savedTxt.current+=(savedTxt.current?" ":"")+sessFinal.current;
+        sessFinal.current="";
+        setDisplayTxt(savedTxt.current);
+      }
+      // Auto-restart if still recording
+      if(recActive.current){try{startSR()}catch{}}
     };
     r.start();srr.current=r;
   };
 
-  const startRec=()=>{setSec(0);setRec(true);recRef.current=true;setLive("");wakeLock();startSR()};
+  const startRec=()=>{
+    setSec(prev=>prev); // keep existing time if continuing
+    setRec(true);recActive.current=true;setLiveTxt("");
+    wakeLock();startSR();
+  };
 
   const stopRec=()=>{
-    setRec(false);recRef.current=false;wakeRelease();
+    setRec(false);recActive.current=false;wakeRelease();
     if(srr.current)try{srr.current.stop()}catch{};
-    if(sessFinal.current){setTxt(p=>p+(p?" ":"")+sessFinal.current);sessFinal.current=""}
-    if(live){setTxt(p=>p+(p?" ":"")+live);setLive("")}
+    // Commit remaining
+    if(sessFinal.current){
+      savedTxt.current+=(savedTxt.current?" ":"")+sessFinal.current;
+      sessFinal.current="";
+    }
+    if(liveTxt){
+      savedTxt.current+=(savedTxt.current?" ":"")+liveTxt;
+      setLiveTxt("");
+    }
+    setDisplayTxt(savedTxt.current);
     srr.current=null;
   };
 
   const toggleRec=()=>{rec?stopRec():startRec()};
-  const allTxt=mode==="text"?typed.trim():(txt+(live?" "+live:"")).trim();
+
+  const allTxt=mode==="text"?typed.trim():savedTxt.current.trim();
+  const showTxt=mode==="text"?typed:(displayTxt+(liveTxt?" "+liveTxt:""));
+  const hasTxt=mode==="text"?typed.trim().length>0:savedTxt.current.trim().length>0||liveTxt.trim().length>0;
+
+  const handleEditSave=(newTxt)=>{
+    savedTxt.current=newTxt;
+    setDisplayTxt(newTxt);
+    setShowEdit(false);
+  };
+
+  const handleSubmit=()=>{
+    if(rec)stopRec();
+    const final=mode==="text"?typed.trim():savedTxt.current.trim();
+    if(final)onDone(final);
+  };
 
   return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020 50%,#0c1428)",display:"flex",flexDirection:"column",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}><BG/>
-    <div style={{position:"relative",zIndex:2,padding:"8px 16px"}}><B onClick={()=>{if(rec)stopRec();onBack()}} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+
+    {showEdit&&<EditModal text={savedTxt.current} onSave={handleEditSave} onClose={()=>setShowEdit(false)}/>}
+
+    <div style={{position:"relative",zIndex:2,padding:"8px 16px",display:"flex",justifyContent:"space-between"}}>
+      <Bt onClick={()=>{if(rec)stopRec();onBack()}} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</Bt>
+      {mode==="voice"&&showTxt&&!rec&&<Bt onClick={()=>setShowEdit(true)} style={{background:"none",color:"rgba(255,255,255,.35)",display:"flex",alignItems:"center",gap:4,fontSize:13}}>{Ic.expand(14)} 编辑文字</Bt>}
+    </div>
+
     <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 24px",position:"relative",zIndex:2,gap:14}}>
+      {/* Mode switch */}
       <div style={{display:"flex",gap:4,padding:4,borderRadius:14,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.06)"}}>
-        {[["voice","语音",Ic.mic(14)],["text","文字",Ic.pen(13)]].map(([m,t,ic])=><B key={m} onClick={()=>{if(rec)stopRec();setMode(m)}} style={{padding:"8px 20px",borderRadius:10,background:mode===m?"rgba(255,255,255,.1)":"transparent",color:mode===m?"rgba(255,255,255,.9)":"rgba(255,255,255,.3)",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:6,transition:"all .2s"}}>{ic} {t}</B>)}
+        {[["voice","语音",Ic.mic(14)],["text","文字",Ic.pen(13)]].map(([m,t,ic])=>
+          <Bt key={m} onClick={()=>{if(rec)stopRec();setMode(m)}} style={{padding:"8px 20px",borderRadius:10,background:mode===m?"rgba(255,255,255,.1)":"transparent",color:mode===m?"rgba(255,255,255,.9)":"rgba(255,255,255,.3)",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:6,transition:"all .2s"}}>{ic} {t}</Bt>
+        )}
       </div>
+
       {mode==="text"?
-        <div style={{width:"100%",maxWidth:360}}><textarea ref={ta} value={typed} onChange={e=>setTyped(e.target.value)} placeholder={"闭上眼睛回想...\n\n画面里有什么？\n你在哪里？\n有谁在身边？"} style={{width:"100%",minHeight:220,maxHeight:350,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:20,padding:20,color:"rgba(255,255,255,.85)",fontSize:16,lineHeight:1.8,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+        <div style={{width:"100%",maxWidth:360}}>
+          <textarea ref={ta} value={typed} onChange={e=>setTyped(e.target.value)}
+            placeholder={"闭上眼睛回想...\n\n画面里有什么？\n你在哪里？\n有谁在身边？"}
+            style={{width:"100%",minHeight:220,maxHeight:350,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:20,padding:20,color:"rgba(255,255,255,.85)",fontSize:16,lineHeight:1.8,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
       :<>
-        {!rec&&!txt&&<p style={{fontSize:17,color:"rgba(255,255,255,.35)",fontWeight:300,lineHeight:1.9,textAlign:"center",margin:0}}>闭上眼睛<br/>回到刚才的梦里<br/>然后开始说...</p>}
-        {rec&&<div style={{textAlign:"center"}}><div style={{fontSize:40,fontWeight:200,color:"rgba(255,255,255,.75)",fontVariantNumeric:"tabular-nums",letterSpacing:4,marginBottom:6}}>{ft(sec)}</div><div style={{display:"flex",justifyContent:"center",gap:3,height:24,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:3,borderRadius:2,background:"rgba(239,68,68,.65)",animation:`waveBar .8s ease-in-out ${i*.1}s infinite alternate`}}/>)}</div></div>}
-        {(txt||live)&&<div style={{width:"100%",maxWidth:340,padding:14,borderRadius:16,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.05)",maxHeight:140,overflowY:"auto"}}><p style={{fontSize:14,color:"rgba(255,255,255,.5)",lineHeight:1.65,margin:0}}>{txt}{live&&<span style={{color:"rgba(255,255,255,.25)"}}>{txt?" ":""}{live}</span>}</p></div>}
-        <B onClick={toggleRec} style={{width:rec?76:92,height:rec?76:92,borderRadius:rec?22:46,background:rec?"rgba(239,68,68,.9)":"linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.04))",border:rec?"3px solid rgba(239,68,68,.35)":"3px solid rgba(255,255,255,.1)",color:"white",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s cubic-bezier(.34,1.56,.64,1)",boxShadow:rec?"0 0 40px rgba(239,68,68,.18)":"none",position:"relative"}}>
+        {!rec&&!showTxt&&<p style={{fontSize:17,color:"rgba(255,255,255,.35)",fontWeight:300,lineHeight:1.9,textAlign:"center",margin:0}}>闭上眼睛<br/>回到刚才的梦里<br/>然后开始说...</p>}
+
+        {/* Timer */}
+        {(rec||showTxt)&&<div style={{textAlign:"center"}}>
+          <div style={{fontSize:40,fontWeight:200,color:rec?"rgba(255,255,255,.75)":"rgba(255,255,255,.3)",fontVariantNumeric:"tabular-nums",letterSpacing:4,marginBottom:6}}>{ft(sec)}</div>
+          {rec&&<div style={{display:"flex",justifyContent:"center",gap:3,height:24,alignItems:"center"}}>
+            {Array.from({length:7}).map((_,i)=><div key={i} style={{width:3,borderRadius:2,background:"rgba(239,68,68,.65)",animation:`waveBar .8s ease-in-out ${i*.1}s infinite alternate`}}/>)}
+          </div>}
+        </div>}
+
+        {/* Transcript — always visible once there's content */}
+        {showTxt&&<Bt onClick={()=>{if(!rec)setShowEdit(true)}} style={{width:"100%",maxWidth:340,padding:14,borderRadius:16,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.05)",maxHeight:160,overflowY:"auto",textAlign:"left"}}>
+          <p style={{fontSize:14,color:"rgba(255,255,255,.5)",lineHeight:1.65,margin:0}}>
+            {displayTxt}
+            {liveTxt&&<span style={{color:"rgba(255,255,255,.25)"}}>{displayTxt?" ":""}{liveTxt}</span>}
+          </p>
+          {!rec&&<div style={{fontSize:11,color:"rgba(99,102,241,.5)",marginTop:6}}>点击展开编辑 ↗</div>}
+        </Bt>}
+
+        {/* Record button */}
+        <Bt onClick={toggleRec} style={{
+          width:rec?76:92,height:rec?76:92,borderRadius:rec?22:46,
+          background:rec?"rgba(239,68,68,.9)":"linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.04))",
+          border:rec?"3px solid rgba(239,68,68,.35)":"3px solid rgba(255,255,255,.1)",
+          color:"white",display:"flex",alignItems:"center",justifyContent:"center",
+          transition:"all .3s cubic-bezier(.34,1.56,.64,1)",
+          boxShadow:rec?"0 0 40px rgba(239,68,68,.18)":"none",position:"relative",
+        }}>
           {rec&&<div style={{position:"absolute",inset:-12,borderRadius:34,border:"2px solid rgba(239,68,68,.12)",animation:"pulseRing 2s ease-out infinite"}}/>}
           {rec?Ic.stop(26):Ic.mic(30)}
-        </B>
-        <span style={{fontSize:12,color:"rgba(255,255,255,.16)"}}>{rec?"轻点结束录制":txt?"轻点继续录制 · 内容会追加":"轻点开始录制"}</span>
+        </Bt>
+        <span style={{fontSize:12,color:"rgba(255,255,255,.16)"}}>
+          {rec?"轻点结束录制":showTxt?"轻点继续录制 · 内容会追加":"轻点开始录制"}
+        </span>
       </>}
     </div>
-    {allTxt&&<div style={{padding:"14px 24px",position:"relative",zIndex:2,animation:"fadeUp .3s ease"}}><B onClick={()=>{if(rec)stopRec();onDone(allTxt)}} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 6px 28px rgba(99,102,241,.3)"}}>{Ic.sparkle(17)} 记录这个梦</B></div>}
+
+    {/* Submit — always visible when there's content */}
+    {hasTxt&&<div style={{padding:"14px 24px",position:"relative",zIndex:2}}>
+      <Bt onClick={handleSubmit} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 6px 28px rgba(99,102,241,.3)"}}>
+        {Ic.sparkle(17)} 记录这个梦
+      </Bt>
+    </div>}
   </div>;
 }
 
@@ -203,32 +383,30 @@ function Post({text,onDone}){
   return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}><BG/>
     <div style={{position:"relative",zIndex:2,padding:"20px 24px",display:"flex",flexDirection:"column",gap:22}}>
       <div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:6}}>🌙</div><h2 style={{fontSize:21,fontWeight:700,margin:0,color:"rgba(255,255,255,.9)"}}>梦已记录</h2><p style={{fontSize:13,color:"rgba(255,255,255,.28)",marginTop:5}}>再补充几个细节吧</p></div>
-      <div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.04)"}}><p style={{fontSize:13,color:"rgba(255,255,255,.38)",lineHeight:1.7,margin:0,display:"-webkit-box",WebkitLineClamp:4,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{text}</p></div>
-      <B onClick={()=>setLuc(!luc)} style={{display:"flex",alignItems:"center",gap:12,padding:"15px 16px",borderRadius:16,background:luc?"rgba(16,185,129,.06)":"rgba(255,255,255,.02)",border:luc?"1px solid rgba(16,185,129,.15)":"1px solid rgba(255,255,255,.04)",width:"100%",transition:"all .2s"}}>
+      <div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.04)"}}><p style={{fontSize:13,color:"rgba(255,255,255,.38)",lineHeight:1.7,margin:0,display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{text}</p></div>
+      <Bt onClick={()=>setLuc(!luc)} style={{display:"flex",alignItems:"center",gap:12,padding:"15px 16px",borderRadius:16,background:luc?"rgba(16,185,129,.06)":"rgba(255,255,255,.02)",border:luc?"1px solid rgba(16,185,129,.15)":"1px solid rgba(255,255,255,.04)",width:"100%",transition:"all .2s"}}>
         <div style={{width:34,height:34,borderRadius:11,background:luc?"rgba(16,185,129,.1)":"rgba(255,255,255,.03)",display:"flex",alignItems:"center",justifyContent:"center",color:luc?"#34d399":"rgba(255,255,255,.22)"}}>{Ic.eye(17)}</div>
         <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:15,fontWeight:600,color:luc?"#34d399":"rgba(255,255,255,.5)"}}>清醒梦</div><div style={{fontSize:12,color:"rgba(255,255,255,.18)",marginTop:1}}>我意识到自己在做梦</div></div>
         <div style={{width:42,height:24,borderRadius:12,background:luc?"#10b981":"rgba(255,255,255,.07)",padding:2,display:"flex",alignItems:"center",justifyContent:luc?"flex-end":"flex-start",transition:"all .2s"}}><div style={{width:20,height:20,borderRadius:10,background:"white",transition:"all .2s"}}/></div>
-      </B>
-      <div><div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.5)",marginBottom:10}}>梦境元素</div><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TAGS.map(t=>{const a=tags.includes(t.e);return<B key={t.e} onClick={()=>tog(t.e)} style={{padding:"7px 13px",borderRadius:11,background:a?"rgba(99,102,241,.1)":"rgba(255,255,255,.02)",border:a?"1px solid rgba(99,102,241,.22)":"1px solid rgba(255,255,255,.04)",color:a?"#a5b4fc":"rgba(255,255,255,.32)",fontSize:13,display:"flex",alignItems:"center",gap:5,transition:"all .15s"}}><span>{t.e}</span> {t.l}</B>})}</div></div>
-      <B onClick={()=>onDone({tags,isLucid:luc})} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 6px 28px rgba(99,102,241,.3)",marginTop:4}}>完成 ✓</B>
-      <B onClick={()=>onDone({tags:[],isLucid:false})} style={{background:"none",color:"rgba(255,255,255,.2)",fontSize:14,padding:6}}>跳过</B>
+      </Bt>
+      <div><div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.5)",marginBottom:10}}>梦境元素</div><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TAGS.map(t=>{const a=tags.includes(t.e);return<Bt key={t.e} onClick={()=>tog(t.e)} style={{padding:"7px 13px",borderRadius:11,background:a?"rgba(99,102,241,.1)":"rgba(255,255,255,.02)",border:a?"1px solid rgba(99,102,241,.22)":"1px solid rgba(255,255,255,.04)",color:a?"#a5b4fc":"rgba(255,255,255,.32)",fontSize:13,display:"flex",alignItems:"center",gap:5,transition:"all .15s"}}><span>{t.e}</span> {t.l}</Bt>})}</div></div>
+      <Bt onClick={()=>onDone({tags,isLucid:luc})} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 6px 28px rgba(99,102,241,.3)",marginTop:4}}>完成 ✓</Bt>
+      <Bt onClick={()=>onDone({tags:[],isLucid:false})} style={{background:"none",color:"rgba(255,255,255,.2)",fontSize:14,padding:6}}>跳过</Bt>
     </div>
   </div>;
 }
 
-/* ══ MONTH VIEW ══ */
+/* ══ MONTH ══ */
 function Month({entries:es,onBack,onEntry}){
   const[m,setM]=useState(new Date());const days=monthDays(m),bd={};es.forEach(e=>{bd[e.dk]=(bd[e.dk]||0)+1});
-  const prev=()=>{const d=new Date(m);d.setMonth(d.getMonth()-1);setM(d)};
-  const next=()=>{const d=new Date(m);d.setMonth(d.getMonth()+1);setM(d)};
   return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:40}}>
-    <div style={{padding:"8px 16px 16px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    <div style={{padding:"8px 16px 16px"}}><Bt onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</Bt></div>
     <div style={{padding:"0 20px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><B onClick={prev} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:20,padding:8}}>‹</B><span style={{fontSize:18,fontWeight:700,color:"rgba(255,255,255,.85)"}}>{m.getFullYear()}年{m.getMonth()+1}月</span><B onClick={next} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:20,padding:8}}>›</B></div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><Bt onClick={()=>{const d=new Date(m);d.setMonth(d.getMonth()-1);setM(d)}} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:22,padding:8}}>‹</Bt><span style={{fontSize:18,fontWeight:700,color:"rgba(255,255,255,.85)"}}>{m.getFullYear()}年{m.getMonth()+1}月</span><Bt onClick={()=>{const d=new Date(m);d.setMonth(d.getMonth()+1);setM(d)}} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:22,padding:8}}>›</Bt></div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:2,marginBottom:8}}>{WK.map(w=><span key={w} style={{fontSize:12,color:"rgba(255,255,255,.25)",padding:4}}>{w}</span>)}</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:2}}>
-        {days.map((d,i)=>{if(!d)return<div key={i}/>;const k=dk(d),h=bd[k]>0,iT=k===dk(now());
-          return<B key={i} onClick={()=>{if(h){const x=es.filter(e=>e.dk===k);if(x.length)onEntry(x[0])}}} style={{width:"100%",aspectRatio:"1",borderRadius:12,background:h?"rgba(99,102,241,.1)":"transparent",border:iT?"1px solid rgba(99,102,241,.3)":"1px solid transparent",color:h?"#a5b4fc":iT?"#818cf8":"rgba(255,255,255,.4)",fontSize:14,fontWeight:h?700:400,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>{d.getDate()}{h&&<span style={{position:"absolute",bottom:3,width:4,height:4,borderRadius:2,background:"#818cf8"}}/>}</B>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:3}}>
+        {days.map((d,i)=>{if(!d)return<div key={i}/>;const k=dkOf(d),h=bd[k]>0,iT=k===dkOf(now());
+          return<Bt key={i} onClick={()=>{if(h){const x=es.filter(e=>e.dk===k);if(x.length)onEntry(x[0])}}} style={{width:"100%",aspectRatio:"1",borderRadius:12,background:h?"rgba(99,102,241,.1)":"transparent",border:iT?"1px solid rgba(99,102,241,.3)":"1px solid transparent",color:h?"#a5b4fc":iT?"#818cf8":"rgba(255,255,255,.4)",fontSize:14,fontWeight:h?700:400,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>{d.getDate()}{h&&<span style={{position:"absolute",bottom:3,width:4,height:4,borderRadius:2,background:"#818cf8"}}/>}</Bt>
         })}
       </div>
     </div>
@@ -239,13 +417,21 @@ function Month({entries:es,onBack,onEntry}){
 function Detail({entry:en,onBack,apiUrl}){
   const vs=en.videoUrl?(en.videoUrl.startsWith("http")?en.videoUrl:`${apiUrl}${en.videoUrl}`):null;
   return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:40}}>
-    <div style={{padding:"8px 16px 12px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    <div style={{padding:"8px 16px 12px"}}><Bt onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</Bt></div>
     {vs&&<div style={{padding:"0 14px 14px"}}><video src={vs} controls playsInline style={{width:"100%",borderRadius:18,background:"#000"}}/></div>}
     <div style={{padding:"0 22px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}><span style={{fontSize:14,color:"rgba(255,255,255,.25)"}}>{en.date} {en.time}</span>{en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <span style={{fontSize:14,color:"rgba(255,255,255,.25)"}}>{en.date} {en.time}</span>
+        {en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}
+      </div>
       <div style={{fontSize:16,color:"rgba(255,255,255,.6)",lineHeight:1.9,marginBottom:20,WebkitUserSelect:"text",userSelect:"text"}}>{en.text}</div>
       {en.tags?.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20}}>{en.tags.map(t=><span key={t} style={{fontSize:22}}>{t}</span>)}</div>}
-      {en.taskId&&<div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)"}}><div style={{fontSize:12,color:"rgba(255,255,255,.25)",marginBottom:6}}>视频状态</div><div style={{fontSize:14,color:en.status==="completed"?"#34d399":en.status==="failed"?"#ef4444":"#818cf8",fontWeight:600}}>{en.status==="completed"?"✅ 已生成":en.status==="failed"?"❌ 失败":"⏳ "+en.status}</div></div>}
+      {en.taskId&&<div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)"}}>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.25)",marginBottom:6}}>视频状态</div>
+        <div style={{fontSize:14,color:en.status==="completed"?"#34d399":en.status==="failed"?"#ef4444":"#818cf8",fontWeight:600}}>
+          {en.status==="completed"?"✅ 已生成":en.status==="failed"?"❌ "+( en.error||"生成失败"):"⏳ "+en.status}
+        </div>
+      </div>}
     </div>
   </div>;
 }
@@ -254,10 +440,10 @@ function Detail({entry:en,onBack,apiUrl}){
 function Settings({cfg,onSave,onBack,onExport,entries:es}){
   const[f,setF]=useState({...cfg});const[testing,setTesting]=useState(false);const[tr,setTr]=useState(null);
   const u=(k,v)=>setF({...f,[k]:v});
-  const test=async()=>{if(!f.apiUrl){setTr({ok:false,m:"请先填写服务器地址"});return}setTesting(true);setTr(null);try{const r=await fetch(`${f.apiUrl.replace(/\/$/,"")}/api/tasks?page=1&per_page=1`,{signal:AbortSignal.timeout(8000)});setTr(r.ok?{ok:true,m:"✅ 连接成功！"}:{ok:false,m:`❌ 错误 (${r.status})`})}catch(e){setTr({ok:false,m:"❌ 无法连接"})}setTesting(false)};
+  const test=async()=>{if(!f.apiUrl){setTr({ok:false,m:"请先填写服务器地址"});return}setTesting(true);setTr(null);try{const r=await fetch(`${f.apiUrl.replace(/\/$/,"")}/api/tasks?page=1&per_page=1`,{signal:AbortSignal.timeout(8000)});setTr(r.ok?{ok:true,m:"✅ 连接成功！服务器正常运行"}:{ok:false,m:`❌ 服务器返回错误 (HTTP ${r.status})`})}catch(e){setTr({ok:false,m:"❌ 无法连接到服务器"})}setTesting(false)};
 
   return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,40px)"}}>
-    <div style={{padding:"8px 16px 16px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    <div style={{padding:"8px 16px 16px"}}><Bt onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</Bt></div>
     <div style={{padding:"0 22px"}}>
       <h1 style={{fontSize:24,fontWeight:800,marginBottom:20}}>设置</h1>
 
@@ -270,18 +456,19 @@ function Settings({cfg,onSave,onBack,onExport,entries:es}){
         </div>
       </div>
 
-      <div style={{padding:"18px 18px",borderRadius:18,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:20}}>
+      <div style={{padding:"18px",borderRadius:18,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:20}}>
         <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:4}}>🎬 视频生成（可选）</div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,.22)",lineHeight:1.5,marginBottom:16}}>连接 Dream-to-Video 后端后，梦境文字会自动生成视频。</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.22)",lineHeight:1.5,marginBottom:16}}>连接 Dream-to-Video 后端后，梦境文字会自动转为视频。</div>
         {[{k:"apiUrl",l:"服务器地址",ph:"http://your-server:8080"},{k:"apiKey",l:"Claude API Key",ph:"sk-ant-xxxxx",t:"password"}].map(({k,l,ph,t})=>
           <div key={k} style={{marginBottom:14}}><label style={{fontSize:11,fontWeight:600,color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6,display:"block"}}>{l}</label><input value={f[k]||""} onChange={e=>u(k,e.target.value)} placeholder={ph} type={t} style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:"12px 14px",color:"white",fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
         )}
-        <B onClick={test} disabled={testing} style={{width:"100%",padding:12,borderRadius:12,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.6)",fontSize:14,fontWeight:500,marginBottom:4}}>{testing?"测试中...":"🔌 测试连接"}</B>
+        <Bt onClick={test} disabled={testing} style={{width:"100%",padding:12,borderRadius:12,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.6)",fontSize:14,fontWeight:500,marginBottom:4}}>{testing?"测试中...":"🔌 测试连接"}</Bt>
         {tr&&<div style={{fontSize:13,color:tr.ok?"#34d399":"#ef4444",padding:"8px 0"}}>{tr.m}</div>}
       </div>
 
-      <B onClick={()=>{onSave(f);onBack()}} style={{width:"100%",padding:15,borderRadius:16,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 4px 20px rgba(99,102,241,.3)"}}>保存设置</B>
-      <B onClick={onExport} style={{width:"100%",padding:13,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",color:"rgba(255,255,255,.35)",fontSize:14,fontWeight:500,marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.dl(15)} 导出所有记录</B>
+      <Bt onClick={()=>{onSave(f);onBack()}} style={{width:"100%",padding:15,borderRadius:16,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 4px 20px rgba(99,102,241,.3)"}}>保存设置</Bt>
+      <Bt onClick={onExport} style={{width:"100%",padding:13,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",color:"rgba(255,255,255,.35)",fontSize:14,fontWeight:500,marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.dl(15)} 导出所有记录（JSON）</Bt>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.15)",marginTop:8,lineHeight:1.5}}>导出后可手动上传到 Google Drive。后续有服务器后可实现自动同步。</div>
     </div>
   </div>;
 }
@@ -296,31 +483,70 @@ function App(){
   const[rm,setRm]=useState("voice");
   const[toast,setToast]=useState(null);
 
-  useEffect(()=>{setEs(LS.g("dr4-e",[]));setCfg(LS.g("dr4-c",{apiUrl:"",apiKey:"",provider:"claude"}))},[]);
+  useEffect(()=>{setEs(LS.g("dr5-e",[]));setCfg(LS.g("dr5-c",{apiUrl:"",apiKey:"",provider:"claude"}))},[]);
 
+  // Poll active tasks
   useEffect(()=>{
     if(!cfg.apiUrl)return;
-    const iv=setInterval(()=>{const cur=LS.g("dr4-e",[]);const act=cur.filter(e=>e.taskId&&!["completed","failed"].includes(e.status));if(!act.length)return;let ch=false;
-    Promise.all(act.map(e=>fetch(`${cfg.apiUrl}/api/tasks/${e.taskId}`).then(r=>r.ok?r.json():null).then(d=>{if(!d)return;const i=cur.findIndex(x=>x.id===e.id);if(i<0)return;if(d.status!==cur[i].status||d.video_url){cur[i].status=d.status;if(d.video_url)cur[i].videoUrl=d.video_url;ch=true}}).catch(()=>{}))).then(()=>{if(ch){setEs([...cur]);LS.s("dr4-e",cur)}})},5000);
+    const iv=setInterval(()=>{
+      const cur=LS.g("dr5-e",[]);
+      const act=cur.filter(e=>e.taskId&&!["completed","failed"].includes(e.status));
+      if(!act.length)return;let ch=false;
+      Promise.all(act.map(e=>
+        fetch(`${cfg.apiUrl}/api/tasks/${e.taskId}`).then(r=>r.ok?r.json():null).then(d=>{
+          if(!d)return;const i=cur.findIndex(x=>x.id===e.id);if(i<0)return;
+          if(d.status!==cur[i].status||d.video_url){
+            cur[i].status=d.status;
+            if(d.video_url)cur[i].videoUrl=d.video_url;
+            if(d.error_message)cur[i].error=d.error_message;
+            ch=true;
+          }
+        }).catch(()=>{})
+      )).then(()=>{if(ch){setEs([...cur]);LS.s("dr5-e",cur)}});
+    },5000);
     return()=>clearInterval(iv);
   },[cfg.apiUrl]);
 
   const flash=m=>{setToast(m);setTimeout(()=>setToast(null),3000)};
+
+  const submitToApi=(entry,allEntries)=>{
+    if(!cfg.apiUrl||!cfg.apiKey)return;
+    fetch(`${cfg.apiUrl}/api/generate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dream_text:entry.text,api_key:cfg.apiKey,provider:cfg.provider||"claude"})})
+    .then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||"提交失败")))
+    .then(d=>{
+      entry.taskId=d.task_id;entry.status=d.status||"pending";
+      setEs([...allEntries]);LS.s("dr5-e",allEntries);
+      flash("视频生成已提交 ✨");
+    }).catch(e=>flash("视频提交失败: "+e));
+  };
+
   const onRecDone=t=>{setPend(t);setPg("post")};
   const onPostDone=meta=>{
     const n=now();
-    const en={id:`d_${Date.now()}`,text:pend,date:fmtD(n),time:`${pad(n.getHours())}:${pad(n.getMinutes())}`,dk:dk(n),tags:meta.tags,isLucid:meta.isLucid,status:null,taskId:null,videoUrl:null,createdAt:n.toISOString()};
-    const up=[en,...es];setEs(up);LS.s("dr4-e",up);setPg("home");flash("梦境已保存 🌙");
-    if(cfg.apiUrl&&cfg.apiKey){fetch(`${cfg.apiUrl}/api/generate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dream_text:pend,api_key:cfg.apiKey,provider:cfg.provider||"claude"})}).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||"失败"))).then(d=>{en.taskId=d.task_id;en.status=d.status||"pending";setEs([...up]);LS.s("dr4-e",up);flash("视频生成已提交 ✨")}).catch(e=>flash("视频提交: "+e))}
+    const en={id:`d_${Date.now()}`,text:pend,date:fmtD(n),time:`${pad(n.getHours())}:${pad(n.getMinutes())}`,dk:dkOf(n),tags:meta.tags,isLucid:meta.isLucid,status:null,taskId:null,videoUrl:null,error:null,createdAt:n.toISOString()};
+    const up=[en,...es];setEs(up);LS.s("dr5-e",up);setPg("home");flash("梦境已保存 🌙");
+    // Auto-submit to video API if configured
+    if(cfg.apiUrl&&cfg.apiKey)submitToApi(en,up);
   };
-  const exp=()=>{const b=new Blob([JSON.stringify(es,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`dreams-${dk(now())}.json`;a.click();flash("已导出 "+es.length+" 条")};
+
+  const onGenVideo=(entry)=>{
+    if(!cfg.apiUrl||!cfg.apiKey){flash("请先在设置中配置服务器地址和 API Key");return}
+    const cur=LS.g("dr5-e",[]);
+    const idx=cur.findIndex(x=>x.id===entry.id);
+    if(idx<0)return;
+    cur[idx].status="pending";
+    setEs([...cur]);LS.s("dr5-e",cur);
+    submitToApi(cur[idx],cur);
+  };
+
+  const exp=()=>{const b=new Blob([JSON.stringify(es,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`dreams-${dkOf(now())}.json`;a.click();flash("已导出 "+es.length+" 条记录")};
 
   return <><Toast msg={toast}/>
-    {pg==="home"&&<Home entries={es} onRec={m=>{setRm(m);setPg("rec")}} onSet={()=>setPg("set")} onEntry={e=>{setDet(e);setPg("det")}} onMonth={()=>setPg("month")}/>}
+    {pg==="home"&&<Home entries={es} onRec={m=>{setRm(m);setPg("rec")}} onSet={()=>setPg("set")} onEntry={e=>{setDet(e);setPg("det")}} onMonth={()=>setPg("month")} cfg={cfg} onGenVideo={onGenVideo}/>}
     {pg==="rec"&&<Rec mode={rm} onDone={onRecDone} onBack={()=>setPg("home")}/>}
     {pg==="post"&&<Post text={pend} onDone={onPostDone}/>}
     {pg==="month"&&<Month entries={es} onBack={()=>setPg("home")} onEntry={e=>{setDet(e);setPg("det")}}/>}
-    {pg==="set"&&<Settings cfg={cfg} entries={es} onSave={c=>{setCfg(c);LS.s("dr4-c",c)}} onBack={()=>setPg("home")} onExport={exp}/>}
+    {pg==="set"&&<Settings cfg={cfg} entries={es} onSave={c=>{setCfg(c);LS.s("dr5-c",c)}} onBack={()=>setPg("home")} onExport={exp}/>}
     {pg==="det"&&det&&<Detail entry={det} onBack={()=>setPg("home")} apiUrl={cfg.apiUrl}/>}
   </>;
 }
