@@ -7,24 +7,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="梦境记录仪">
 <meta name="theme-color" content="#060a14">
-<meta name="description" content="记录梦境 · 追踪清醒梦 · AI生成视频">
 <title>梦境记录仪</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23060a14' width='100' height='100' rx='22'/><text x='50' y='62' text-anchor='middle' font-size='55'>🌙</text></svg>">
-<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoi5qKm5aKD6K6w5b2V5LuqIiwic2hvcnRfbmFtZSI6IuaipuWigyIsInN0YXJ0X3VybCI6Ii4vIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzA2MGExNCIsInRoZW1lX2NvbG9yIjoiIzA2MGExNCJ9">
 <style>
-@keyframes fadeUp{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulseRing{0%{transform:scale(1);opacity:.6}100%{transform:scale(1.5);opacity:0}}
-@keyframes orbP{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
-@keyframes waveBar{0%{height:4px}100%{height:20px}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-html,body{margin:0;padding:0;background:#060a14;color:#fff;overscroll-behavior:none;-webkit-overflow-scrolling:touch;font-family:-apple-system,"SF Pro Display","SF Pro Text","Helvetica Neue",system-ui,sans-serif}
+html,body{margin:0;padding:0;background:#060a14;color:#fff;overscroll-behavior:none;font-family:-apple-system,"SF Pro Display",system-ui,sans-serif}
 textarea,input{-webkit-user-select:text;user-select:text}
 ::selection{background:rgba(99,102,241,.3)}
-textarea::placeholder,input::placeholder{color:rgba(255,255,255,.18)}
+textarea::placeholder,input::placeholder{color:rgba(255,255,255,.2)}
 ::-webkit-scrollbar{display:none}
-#R{min-height:100vh;min-height:100dvh}
+@keyframes fadeUp{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseRing{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.6);opacity:0}}
+@keyframes orbFloat{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-10px);opacity:.7}}
+@keyframes waveBar{0%{height:3px}100%{height:22px}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -33,425 +29,301 @@ textarea::placeholder,input::placeholder{color:rgba(255,255,255,.18)}
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 <script type="text/babel">
-const{useState,useEffect,useRef,useCallback}=React;
-
-/* ── helpers ── */
-const pad=n=>String(n).padStart(2,"0");
-const now=()=>new Date();
-const dk=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const{useState,useEffect,useRef}=React;
+const pad=n=>String(n).padStart(2,"0"),now=()=>new Date(),dk=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const WK=["日","一","二","三","四","五","六"];
-const WKF=["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
-const fmtD=d=>`${d.getMonth()+1}月${d.getDate()}日 · ${WKF[d.getDay()]}`;
-const weekOf=date=>{const d=new Date(date),s=new Date(d);s.setDate(d.getDate()-d.getDay());return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x;});};
-const streak=entries=>{const ds=new Set(entries.map(e=>e.dk));let n=0,d=new Date();if(!ds.has(dk(d)))d.setDate(d.getDate()-1);while(ds.has(dk(d))){n++;d.setDate(d.getDate()-1);}return n;};
-const LS={get:(k,fb)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const fmtD=d=>`${d.getMonth()+1}月${d.getDate()}日 · 星期${WK[d.getDay()]}`;
+const weekOf=d=>{const s=new Date(d);s.setDate(s.getDate()-s.getDay());return Array.from({length:7},(_,i)=>{const x=new Date(s);x.setDate(s.getDate()+i);return x})};
+const monthDays=d=>{const y=d.getFullYear(),m=d.getMonth(),f=new Date(y,m,1),l=new Date(y,m+1,0),r=[];for(let i=0;i<f.getDay();i++)r.push(null);for(let i=1;i<=l.getDate();i++)r.push(new Date(y,m,i));return r};
+const streak=es=>{const ds=new Set(es.map(e=>e.dk));let n=0,d=new Date();if(!ds.has(dk(d)))d.setDate(d.getDate()-1);while(ds.has(dk(d))){n++;d.setDate(d.getDate()-1)}return n};
+const LS={g:(k,f)=>{try{return JSON.parse(localStorage.getItem(k))||f}catch{return f}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const TAGS=[{e:"🌊",l:"水"},{e:"🕊️",l:"飞翔"},{e:"🏃",l:"追逐"},{e:"🌀",l:"坠落"},{e:"👥",l:"人群"},{e:"🏠",l:"家"},{e:"🌌",l:"宇宙"},{e:"🐾",l:"动物"},{e:"🔮",l:"神秘"},{e:"😨",l:"恐惧"},{e:"💛",l:"温暖"},{e:"🎭",l:"荒诞"}];
 
-const TAGS=[
-  {e:"🌊",l:"水"},{e:"🕊️",l:"飞翔"},{e:"🏃",l:"追逐"},{e:"🌀",l:"坠落"},
-  {e:"👥",l:"人群"},{e:"🏠",l:"家"},{e:"🌌",l:"宇宙"},{e:"🐾",l:"动物"},
-  {e:"🔮",l:"神秘"},{e:"😨",l:"恐惧"},{e:"💛",l:"温暖"},{e:"🎭",l:"荒诞"},
-];
+let _wl=null;
+async function wakeLock(){try{if("wakeLock"in navigator)_wl=await navigator.wakeLock.request("screen")}catch{}}
+function wakeRelease(){if(_wl){try{_wl.release()}catch{}_wl=null}}
 
-/* ── icons ── */
-const Svg=({d,s=20,f="none",sw="1.8",...p})=><svg width={s} height={s} viewBox="0 0 24 24" fill={f} stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" {...p}>{d}</svg>;
-const IC={
-  mic:s=><Svg s={s} d={<><rect x="9" y="1" width="6" height="14" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="23" x2="12" y2="19"/></>}/>,
-  pen:s=><Svg s={s} d={<><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>}/>,
-  back:s=><Svg s={s} sw="2" d={<polyline points="15 18 9 12 15 6"/>}/>,
-  gear:s=><Svg s={s} sw="1.5" d={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>}/>,
-  play:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="white" opacity=".9"><polygon points="6 3 20 12 6 21"/></svg>,
-  star:(s,f)=><Svg s={s} f={f?"currentColor":"none"} sw="1.5" d={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>}/>,
-  sparkle:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" opacity=".8"><path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z"/></svg>,
+const Ic={
+  mic:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="1" width="6" height="14" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="23" x2="12" y2="19"/></svg>,
+  pen:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>,
+  back:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
+  gear:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  play:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="white" opacity=".85"><polygon points="6 3 20 12 6 21"/></svg>,
   stop:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>,
-  eye:s=><Svg s={s} sw="1.5" d={<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}/>,
-  video:s=><Svg s={s} d={<><rect x="2" y="4" width="15" height="16" rx="2"/><polygon points="22 8 17 12 22 16"/></>}/>,
-  exp:s=><Svg s={s} sw="1.5" d={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>}/>,
+  sparkle:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" opacity=".85"><path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74z"/></svg>,
+  eye:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  cal:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  dl:s=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
 
-/* ── background ── */
-const BG=()=><div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}>
-  <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 20%,rgba(30,40,80,.35) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(20,30,60,.25) 0%,transparent 50%)"}}/>
-  <div style={{position:"absolute",top:"15%",left:"55%",width:200,height:200,borderRadius:"50%",background:"radial-gradient(circle,rgba(99,102,241,.07) 0%,transparent 70%)",animation:"orbP 8s ease-in-out infinite"}}/>
-  <div style={{position:"absolute",top:"65%",left:"15%",width:150,height:150,borderRadius:"50%",background:"radial-gradient(circle,rgba(59,130,246,.05) 0%,transparent 70%)",animation:"orbP 12s ease-in-out infinite 3s"}}/>
-</div>;
+const BG=()=><div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}}><div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 25% 15%,rgba(30,40,90,.3) 0%,transparent 55%),radial-gradient(ellipse at 75% 85%,rgba(20,30,70,.2) 0%,transparent 50%)"}}/><div style={{position:"absolute",top:"12%",right:"10%",width:180,height:180,borderRadius:"50%",background:"radial-gradient(circle,rgba(99,102,241,.06) 0%,transparent 70%)",animation:"orbFloat 10s ease-in-out infinite"}}/></div>;
+const Toast=({msg})=>msg?<div style={{position:"fixed",top:"env(safe-area-inset-top,50px)",left:16,right:16,zIndex:999,textAlign:"center",padding:"13px 18px",borderRadius:16,background:"rgba(99,102,241,.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",fontSize:14,fontWeight:500,animation:"fadeUp .3s ease"}}>{msg}</div>:null;
+const B=({children,style,...p})=><button {...p} style={{border:"none",cursor:"pointer",fontFamily:"inherit",...style}}>{children}</button>;
 
-/* ── button helper ── */
-const Btn=({children,style,...p})=><button style={{border:"none",cursor:"pointer",fontFamily:"inherit",...style}} {...p}>{children}</button>;
+/* ══ HOME ══ */
+function Home({entries:es,onRec,onSet,onEntry,onMonth}){
+  const[sel,setSel]=useState(new Date());
+  const wk=weekOf(sel),td=dk(now()),sd=dk(sel);
+  const dayE=es.filter(e=>e.dk===sd),bd={};es.forEach(e=>{bd[e.dk]=(bd[e.dk]||0)+1});
+  const stk=streak(es),lucN=es.filter(e=>e.isLucid).length,lat=dayE[0],hr=now().getHours();
 
-/* ════════════════════════════════════════
-   QUICK RECORD — first screen on wake up
-   ════════════════════════════════════════ */
-function QuickRecord({onDone,onJournal}){
+  return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1225 50%,#0c1428)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:100}}><BG/>
+  <div style={{position:"relative",zIndex:2}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px 0"}}>
+      <div>
+        <h1 style={{fontSize:26,fontWeight:800,margin:0,letterSpacing:-.5,color:"rgba(255,255,255,.92)"}}>Today</h1>
+        {stk>0&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:4}}><span style={{fontSize:13}}>🔥</span><span style={{fontSize:13,fontWeight:700,color:"#fbbf24"}}>{stk}</span><span style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>天连续记录</span></div>}
+      </div>
+      <div style={{display:"flex",gap:6}}>
+        <B onClick={onMonth} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.cal(16)}</B>
+        <B onClick={onSet} style={{width:36,height:36,borderRadius:18,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.gear(16)}</B>
+      </div>
+    </div>
+
+    <div style={{margin:"16px 14px 0",padding:"10px 4px 8px",borderRadius:18,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.04)"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center"}}>
+        {wk.map((d,i)=>{const k=dk(d),iS=k===sd,iT=k===td,h=bd[k]>0;return(
+          <B key={i} onClick={()=>setSel(new Date(d))} style={{background:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"3px 0",color:"inherit"}}>
+            <span style={{fontSize:11,fontWeight:500,color:iS?"rgba(255,255,255,.85)":"rgba(255,255,255,.25)"}}>{WK[i]}</span>
+            <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:600,background:iS?"linear-gradient(135deg,#6366f1,#818cf8)":"transparent",color:iS?"#fff":iT?"#818cf8":"rgba(255,255,255,.55)",transition:"all .2s"}}>{d.getDate()}</span>
+            <span style={{width:4,height:4,borderRadius:2,background:h?"#818cf8":"transparent"}}/>
+          </B>
+        )})}
+      </div>
+    </div>
+
+    <div style={{padding:"14px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span style={{fontSize:14,color:"rgba(255,255,255,.4)",fontWeight:500}}>{fmtD(sel)}</span>
+      {lucN>0&&<span style={{fontSize:12,color:"#34d399",display:"flex",alignItems:"center",gap:4}}>{Ic.eye(13)} {lucN}次清醒梦</span>}
+    </div>
+
+    <div onClick={lat?()=>onEntry(lat):undefined} style={{margin:"0 14px",borderRadius:22,overflow:"hidden",border:"1px solid rgba(255,255,255,.05)",background:"rgba(255,255,255,.02)",cursor:lat?"pointer":"default"}}>
+      <div style={{height:200,position:"relative",background:"linear-gradient(135deg,#0a1628,#1a1040 40%,#0f2847 70%,#0a1628)",overflow:"hidden"}}>
+        {Array.from({length:8}).map((_,i)=><div key={i} style={{position:"absolute",width:2,height:2,borderRadius:1,background:"rgba(180,200,255,.25)",top:`${15+Math.sin(i*1.7)*35}%`,left:`${10+Math.cos(i*2.3)*40+40}%`}}/>)}
+        {lat?.videoUrl?<><video src={lat.videoUrl} style={{width:"100%",height:"100%",objectFit:"cover"}} muted playsInline/><div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.2)"}}><div style={{width:48,height:48,borderRadius:24,background:"rgba(0,0,0,.4)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",paddingLeft:2}}>{Ic.play(20)}</div></div></>
+        :<div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontSize:52,opacity:.1}}>🌙</span>
+          {lat?.taskId&&lat.status!=="completed"&&lat.status!=="failed"&&<span style={{marginTop:8,fontSize:12,color:"rgba(255,255,255,.3)",display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:4,border:"2px solid rgba(99,102,241,.5)",borderTopColor:"transparent",animation:"spin .8s linear infinite",display:"inline-block"}}/>视频生成中...</span>}
+        </div>}
+      </div>
+      <div style={{padding:"16px 18px 18px"}}>
+        {lat?<><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:15,fontWeight:700,color:"rgba(255,255,255,.85)"}}>梦境片段</span>{lat.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div><span style={{fontSize:12,color:"rgba(255,255,255,.25)"}}>{lat.time}</span></div>
+        <p style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.65,margin:0,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{lat.text}</p>
+        {lat.tags?.length>0&&<div style={{marginTop:10,display:"flex",gap:4}}>{lat.tags.map(t=><span key={t} style={{fontSize:15}}>{t}</span>)}</div>}</>
+        :<><span style={{fontSize:15,fontWeight:600,color:"rgba(255,255,255,.35)"}}>这一天还没有记录</span><p style={{fontSize:13,color:"rgba(255,255,255,.2)",marginTop:4,lineHeight:1.5}}>醒来时记得把最清晰的画面记录下来。</p></>}
+      </div>
+    </div>
+
+    {dayE.length>1&&<div style={{padding:"10px 14px 0"}}>{dayE.slice(1).map(en=><div key={en.id} onClick={()=>onEntry(en)} style={{padding:"14px 16px",borderRadius:16,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:8,cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,.6)"}}>{en.time}</span>{en.isLucid&&<span style={{fontSize:9,fontWeight:600,padding:"1px 6px",borderRadius:6,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div>{en.tags?.length>0&&<div style={{display:"flex",gap:2}}>{en.tags.slice(0,3).map(t=><span key={t} style={{fontSize:13}}>{t}</span>)}</div>}</div><p style={{fontSize:12,color:"rgba(255,255,255,.3)",margin:"6px 0 0",display:"-webkit-box",WebkitLineClamp:1,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{en.text}</p></div>)}</div>}
+
+    {hr>=20&&<div style={{margin:"14px 14px 0",padding:"15px 18px",borderRadius:18,background:"linear-gradient(135deg,rgba(99,102,241,.04),rgba(139,92,246,.02))",border:"1px solid rgba(99,102,241,.07)"}}><div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:5}}>💭 入睡前提醒</div><div style={{fontSize:13,color:"rgba(255,255,255,.28)",lineHeight:1.6}}>躺下后对自己说："今晚我会意识到自己在做梦。"</div></div>}
+  </div>
+
+  <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:100,paddingBottom:"env(safe-area-inset-bottom,16px)",background:"linear-gradient(transparent,rgba(6,10,20,.95) 30%)"}}>
+    <div style={{display:"flex",gap:10,padding:"16px 16px 8px",justifyContent:"center"}}>
+      <B onClick={()=>onRec("voice")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.mic(17)} 语音</B>
+      <B onClick={()=>onRec("text")} style={{flex:1,maxWidth:180,padding:"15px 0",borderRadius:16,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.7)",fontSize:15,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.pen(16)} 文字</B>
+    </div>
+  </div>
+  </div>;
+}
+
+/* ══ RECORD ══ */
+function Rec({mode:im,onDone,onBack}){
+  const[mode,setMode]=useState(im||"voice");
   const[rec,setRec]=useState(false);
   const[sec,setSec]=useState(0);
   const[txt,setTxt]=useState("");
-  const[mode,setMode]=useState(false); // false=voice, true=text
+  const[live,setLive]=useState("");
   const[typed,setTyped]=useState("");
-  const timer=useRef();const sr=useRef();const ta=useRef();
+  const tmr=useRef();const srr=useRef();const ta=useRef();
+  const recRef=useRef(false);
+  const sessFinal=useRef("");
 
-  useEffect(()=>{
-    if(rec){const t0=Date.now();timer.current=setInterval(()=>setSec(Math.floor((Date.now()-t0)/1000)),250)}
-    else clearInterval(timer.current);
-    return()=>clearInterval(timer.current);
-  },[rec]);
-
-  useEffect(()=>{if(mode&&ta.current)setTimeout(()=>ta.current.focus(),100)},[mode]);
+  useEffect(()=>{if(rec){const t0=Date.now();tmr.current=setInterval(()=>setSec(Math.floor((Date.now()-t0)/1000)),250)}else clearInterval(tmr.current);return()=>clearInterval(tmr.current)},[rec]);
+  useEffect(()=>{if(mode==="text"&&ta.current)setTimeout(()=>ta.current.focus(),150)},[mode]);
+  useEffect(()=>()=>{wakeRelease();if(srr.current)try{srr.current.abort()}catch{}},[]);
 
   const ft=s=>`${pad(Math.floor(s/60))}:${pad(s%60)}`;
 
-  const toggle=()=>{
-    if(rec){
-      setRec(false);
-      if(sr.current)try{sr.current.stop()}catch{}
-      // If no transcript captured, add a note
-      if(!txt) setTxt(prev => prev || "");
-    }else{
-      setSec(0);setRec(true);setTxt("");
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(SR){
-        const r=new SR();r.lang="zh-CN";r.continuous=true;r.interimResults=true;
-        let final="";
-        r.onresult=e=>{let t="";for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript;else t+=e.results[i][0].transcript;}setTxt(final+t)};
-        r.onerror=()=>{};
-        r.onend=()=>{if(rec)try{r.start()}catch{}}; // auto-restart if still recording
-        r.start();sr.current=r;
-      }
-    }
+  const startSR=()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR)return;
+    const r=new SR();r.lang="zh-CN";r.continuous=true;r.interimResults=true;
+    sessFinal.current="";
+    r.onresult=e=>{let interim="";sessFinal.current="";for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)sessFinal.current+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript}setLive(interim)};
+    r.onerror=()=>{};
+    r.onend=()=>{
+      if(sessFinal.current){setTxt(p=>p+(p?" ":"")+sessFinal.current);sessFinal.current=""}
+      if(recRef.current)try{startSR()}catch{}
+    };
+    r.start();srr.current=r;
   };
 
-  const has=mode?typed.trim():txt.trim();
-  const content=mode?typed.trim():txt.trim();
+  const startRec=()=>{setSec(0);setRec(true);recRef.current=true;setLive("");wakeLock();startSR()};
 
-  const S={
-    wrap:{minHeight:"100vh",minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020 50%,#0c1428)",display:"flex",flexDirection:"column",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"},
-    top:{position:"relative",zIndex:2,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px"},
+  const stopRec=()=>{
+    setRec(false);recRef.current=false;wakeRelease();
+    if(srr.current)try{srr.current.stop()}catch{};
+    if(sessFinal.current){setTxt(p=>p+(p?" ":"")+sessFinal.current);sessFinal.current=""}
+    if(live){setTxt(p=>p+(p?" ":"")+live);setLive("")}
+    srr.current=null;
   };
 
-  return <div style={S.wrap}><BG/>
-    <div style={S.top}>
-      <span style={{fontSize:13,color:"rgba(255,255,255,.2)",fontWeight:500}}>{fmtD(now())}</span>
-      <Btn onClick={onJournal} style={{background:"none",color:"rgba(255,255,255,.3)",fontSize:14,padding:"8px 0"}}>日记本 →</Btn>
-    </div>
+  const toggleRec=()=>{rec?stopRec():startRec()};
+  const allTxt=mode==="text"?typed.trim():(txt+(live?" "+live:"")).trim();
 
-    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 24px",position:"relative",zIndex:2,gap:16}}>
-      {/* mode switch */}
+  return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020 50%,#0c1428)",display:"flex",flexDirection:"column",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}><BG/>
+    <div style={{position:"relative",zIndex:2,padding:"8px 16px"}}><B onClick={()=>{if(rec)stopRec();onBack()}} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 24px",position:"relative",zIndex:2,gap:14}}>
       <div style={{display:"flex",gap:4,padding:4,borderRadius:14,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.06)"}}>
-        {[[false,"语音",IC.mic(14)],[true,"文字",IC.pen(13)]].map(([m,t,ico])=>
-          <Btn key={t} onClick={()=>setMode(m)} style={{padding:"8px 20px",borderRadius:10,background:mode===m?"rgba(255,255,255,.1)":"transparent",color:mode===m?"rgba(255,255,255,.9)":"rgba(255,255,255,.3)",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:6,transition:"all .2s"}}>{ico} {t}</Btn>
-        )}
+        {[["voice","语音",Ic.mic(14)],["text","文字",Ic.pen(13)]].map(([m,t,ic])=><B key={m} onClick={()=>{if(rec)stopRec();setMode(m)}} style={{padding:"8px 20px",borderRadius:10,background:mode===m?"rgba(255,255,255,.1)":"transparent",color:mode===m?"rgba(255,255,255,.9)":"rgba(255,255,255,.3)",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:6,transition:"all .2s"}}>{ic} {t}</B>)}
       </div>
-
-      {mode?
-        /* TEXT */
-        <div style={{width:"100%",maxWidth:360}}>
-          <textarea ref={ta} value={typed} onChange={e=>setTyped(e.target.value)}
-            placeholder={"闭上眼睛回想...\n\n画面里有什么？\n你在哪里？\n有谁在身边？"}
-            style={{width:"100%",minHeight:200,maxHeight:320,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:20,padding:20,color:"rgba(255,255,255,.85)",fontSize:16,lineHeight:1.8,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-        </div>
-      :
-        /* VOICE */
-        <>
-          {!rec&&!txt&&<p style={{fontSize:18,color:"rgba(255,255,255,.4)",fontWeight:300,lineHeight:1.9,textAlign:"center",margin:"0 0 8px",letterSpacing:.5}}>闭上眼睛<br/>回到刚才的梦里<br/>然后开始说...</p>}
-
-          {rec&&<div style={{textAlign:"center"}}>
-            <div style={{fontSize:42,fontWeight:200,color:"rgba(255,255,255,.8)",fontVariantNumeric:"tabular-nums",letterSpacing:4,marginBottom:8}}>{ft(sec)}</div>
-            <div style={{display:"flex",justifyContent:"center",gap:3,height:24,alignItems:"center"}}>
-              {Array.from({length:7}).map((_,i)=><div key={i} style={{width:3,borderRadius:2,background:"rgba(239,68,68,.7)",animation:`waveBar .8s ease-in-out ${i*.1}s infinite alternate`}}/>)}
-            </div>
-            {txt&&<p style={{fontSize:13,color:"rgba(255,255,255,.4)",marginTop:16,maxWidth:300,lineHeight:1.6,maxHeight:80,overflow:"hidden"}}>{txt}</p>}
-            <p style={{fontSize:13,color:"rgba(255,255,255,.2)",marginTop:8}}>正在聆听...</p>
-          </div>}
-
-          {txt&&!rec&&<div style={{width:"100%",maxWidth:340,padding:16,borderRadius:16,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.06)",maxHeight:160,overflowY:"auto"}}>
-            <p style={{fontSize:14,color:"rgba(255,255,255,.55)",lineHeight:1.7,margin:0}}>{txt}</p>
-          </div>}
-
-          <Btn onClick={toggle} style={{
-            width:rec?80:96,height:rec?80:96,borderRadius:rec?24:48,
-            background:rec?"rgba(239,68,68,.9)":"linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.05))",
-            border:rec?"3px solid rgba(239,68,68,.4)":"3px solid rgba(255,255,255,.12)",
-            color:"white",display:"flex",alignItems:"center",justifyContent:"center",
-            transition:"all .3s cubic-bezier(.34,1.56,.64,1)",
-            boxShadow:rec?"0 0 40px rgba(239,68,68,.2)":"0 0 30px rgba(255,255,255,.02)",
-            position:"relative",
-          }}>
-            {rec&&<div style={{position:"absolute",inset:-12,borderRadius:36,border:"2px solid rgba(239,68,68,.15)",animation:"pulseRing 2s ease-out infinite"}}/>}
-            {rec?IC.stop(28):IC.mic(32)}
-          </Btn>
-          <span style={{fontSize:13,color:"rgba(255,255,255,.18)",marginTop:-4}}>{rec?"轻点结束录制":"轻点开始录制"}</span>
-        </>
-      }
+      {mode==="text"?
+        <div style={{width:"100%",maxWidth:360}}><textarea ref={ta} value={typed} onChange={e=>setTyped(e.target.value)} placeholder={"闭上眼睛回想...\n\n画面里有什么？\n你在哪里？\n有谁在身边？"} style={{width:"100%",minHeight:220,maxHeight:350,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:20,padding:20,color:"rgba(255,255,255,.85)",fontSize:16,lineHeight:1.8,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+      :<>
+        {!rec&&!txt&&<p style={{fontSize:17,color:"rgba(255,255,255,.35)",fontWeight:300,lineHeight:1.9,textAlign:"center",margin:0}}>闭上眼睛<br/>回到刚才的梦里<br/>然后开始说...</p>}
+        {rec&&<div style={{textAlign:"center"}}><div style={{fontSize:40,fontWeight:200,color:"rgba(255,255,255,.75)",fontVariantNumeric:"tabular-nums",letterSpacing:4,marginBottom:6}}>{ft(sec)}</div><div style={{display:"flex",justifyContent:"center",gap:3,height:24,alignItems:"center"}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:3,borderRadius:2,background:"rgba(239,68,68,.65)",animation:`waveBar .8s ease-in-out ${i*.1}s infinite alternate`}}/>)}</div></div>}
+        {(txt||live)&&<div style={{width:"100%",maxWidth:340,padding:14,borderRadius:16,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.05)",maxHeight:140,overflowY:"auto"}}><p style={{fontSize:14,color:"rgba(255,255,255,.5)",lineHeight:1.65,margin:0}}>{txt}{live&&<span style={{color:"rgba(255,255,255,.25)"}}>{txt?" ":""}{live}</span>}</p></div>}
+        <B onClick={toggleRec} style={{width:rec?76:92,height:rec?76:92,borderRadius:rec?22:46,background:rec?"rgba(239,68,68,.9)":"linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.04))",border:rec?"3px solid rgba(239,68,68,.35)":"3px solid rgba(255,255,255,.1)",color:"white",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .3s cubic-bezier(.34,1.56,.64,1)",boxShadow:rec?"0 0 40px rgba(239,68,68,.18)":"none",position:"relative"}}>
+          {rec&&<div style={{position:"absolute",inset:-12,borderRadius:34,border:"2px solid rgba(239,68,68,.12)",animation:"pulseRing 2s ease-out infinite"}}/>}
+          {rec?Ic.stop(26):Ic.mic(30)}
+        </B>
+        <span style={{fontSize:12,color:"rgba(255,255,255,.16)"}}>{rec?"轻点结束录制":txt?"轻点继续录制 · 内容会追加":"轻点开始录制"}</span>
+      </>}
     </div>
-
-    {has&&<div style={{padding:"16px 24px",position:"relative",zIndex:2,animation:"fadeUp .3s ease"}}>
-      <Btn onClick={()=>onDone(content)} style={{width:"100%",padding:18,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:17,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 8px 32px rgba(99,102,241,.3)",letterSpacing:.5}}>
-        {IC.sparkle(18)} 记录这个梦
-      </Btn>
-    </div>}
+    {allTxt&&<div style={{padding:"14px 24px",position:"relative",zIndex:2,animation:"fadeUp .3s ease"}}><B onClick={()=>{if(rec)stopRec();onDone(allTxt)}} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 6px 28px rgba(99,102,241,.3)"}}>{Ic.sparkle(17)} 记录这个梦</B></div>}
   </div>;
 }
 
-/* ════════════════════════════════════════
-   POST RECORD — clarity + tags + lucid
-   ════════════════════════════════════════ */
-function PostRecord({text,onDone}){
-  const[c,setC]=useState(3);
-  const[tags,setTags]=useState([]);
-  const[luc,setLuc]=useState(false);
+/* ══ POST RECORD ══ */
+function Post({text,onDone}){
+  const[tags,setTags]=useState([]);const[luc,setLuc]=useState(false);
   const tog=e=>setTags(p=>p.includes(e)?p.filter(t=>t!==e):[...p,e]);
-  const CL=["","很模糊","有点糊","一般","比较清晰","像真的一样"];
-
-  return <div style={{minHeight:"100vh",minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}>
-    <BG/>
-    <div style={{position:"relative",zIndex:2,padding:"20px 24px",display:"flex",flexDirection:"column",gap:24}}>
-      <div style={{textAlign:"center"}}>
-        <div style={{fontSize:32,marginBottom:8}}>🌙</div>
-        <h2 style={{fontSize:22,fontWeight:700,margin:0,color:"rgba(255,255,255,.9)"}}>梦已记录</h2>
-        <p style={{fontSize:14,color:"rgba(255,255,255,.3)",marginTop:6}}>再补充几个细节吧</p>
-      </div>
-
-      <div style={{padding:16,borderRadius:16,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.05)"}}>
-        <p style={{fontSize:14,color:"rgba(255,255,255,.4)",lineHeight:1.7,margin:0,display:"-webkit-box",WebkitLineClamp:4,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{text}</p>
-      </div>
-
-      {/* clarity */}
-      <div>
-        <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:12}}>梦境清晰度</div>
-        <div style={{display:"flex",gap:6,justifyContent:"center"}}>
-          {[1,2,3,4,5].map(n=><Btn key={n} onClick={()=>setC(n)} style={{width:52,height:52,borderRadius:16,background:n<=c?`rgba(99,102,241,${.08+n*.05})`:"rgba(255,255,255,.02)",border:n<=c?"1px solid rgba(99,102,241,.25)":"1px solid rgba(255,255,255,.05)",color:n<=c?"#a5b4fc":"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>{IC.star(16,n<=c)}</Btn>)}
-        </div>
-        <div style={{textAlign:"center",fontSize:12,color:"rgba(255,255,255,.2)",marginTop:8}}>{CL[c]}</div>
-      </div>
-
-      {/* lucid */}
-      <Btn onClick={()=>setLuc(!luc)} style={{display:"flex",alignItems:"center",gap:12,padding:"16px 18px",borderRadius:16,background:luc?"rgba(16,185,129,.06)":"rgba(255,255,255,.02)",border:luc?"1px solid rgba(16,185,129,.18)":"1px solid rgba(255,255,255,.05)",width:"100%",transition:"all .2s"}}>
-        <div style={{width:36,height:36,borderRadius:12,background:luc?"rgba(16,185,129,.12)":"rgba(255,255,255,.04)",display:"flex",alignItems:"center",justifyContent:"center",color:luc?"#34d399":"rgba(255,255,255,.25)",transition:"all .2s"}}>{IC.eye(18)}</div>
-        <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:15,fontWeight:600,color:luc?"#34d399":"rgba(255,255,255,.55)"}}>清醒梦</div><div style={{fontSize:12,color:"rgba(255,255,255,.2)",marginTop:2}}>我意识到自己在做梦</div></div>
-        <div style={{width:44,height:26,borderRadius:13,background:luc?"#10b981":"rgba(255,255,255,.08)",padding:3,display:"flex",alignItems:"center",justifyContent:luc?"flex-end":"flex-start",transition:"all .2s"}}><div style={{width:20,height:20,borderRadius:10,background:"white",transition:"all .2s"}}/></div>
-      </Btn>
-
-      {/* tags */}
-      <div>
-        <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:12}}>梦境元素</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {TAGS.map(t=>{const a=tags.includes(t.e);return<Btn key={t.e} onClick={()=>tog(t.e)} style={{padding:"8px 14px",borderRadius:12,background:a?"rgba(99,102,241,.1)":"rgba(255,255,255,.02)",border:a?"1px solid rgba(99,102,241,.25)":"1px solid rgba(255,255,255,.05)",color:a?"#a5b4fc":"rgba(255,255,255,.35)",fontSize:13,display:"flex",alignItems:"center",gap:5,transition:"all .15s"}}><span>{t.e}</span> {t.l}</Btn>})}
-        </div>
-      </div>
-
-      <Btn onClick={()=>onDone({clarity:c,tags,isLucid:luc})} style={{width:"100%",padding:18,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:17,fontWeight:600,boxShadow:"0 8px 32px rgba(99,102,241,.3)",marginTop:4}}>完成 ✓</Btn>
-      <Btn onClick={()=>onDone({clarity:3,tags:[],isLucid:false})} style={{background:"none",color:"rgba(255,255,255,.2)",fontSize:14,padding:8}}>跳过，先提交</Btn>
+  return <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,24px)"}}><BG/>
+    <div style={{position:"relative",zIndex:2,padding:"20px 24px",display:"flex",flexDirection:"column",gap:22}}>
+      <div style={{textAlign:"center"}}><div style={{fontSize:32,marginBottom:6}}>🌙</div><h2 style={{fontSize:21,fontWeight:700,margin:0,color:"rgba(255,255,255,.9)"}}>梦已记录</h2><p style={{fontSize:13,color:"rgba(255,255,255,.28)",marginTop:5}}>再补充几个细节吧</p></div>
+      <div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.04)"}}><p style={{fontSize:13,color:"rgba(255,255,255,.38)",lineHeight:1.7,margin:0,display:"-webkit-box",WebkitLineClamp:4,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{text}</p></div>
+      <B onClick={()=>setLuc(!luc)} style={{display:"flex",alignItems:"center",gap:12,padding:"15px 16px",borderRadius:16,background:luc?"rgba(16,185,129,.06)":"rgba(255,255,255,.02)",border:luc?"1px solid rgba(16,185,129,.15)":"1px solid rgba(255,255,255,.04)",width:"100%",transition:"all .2s"}}>
+        <div style={{width:34,height:34,borderRadius:11,background:luc?"rgba(16,185,129,.1)":"rgba(255,255,255,.03)",display:"flex",alignItems:"center",justifyContent:"center",color:luc?"#34d399":"rgba(255,255,255,.22)"}}>{Ic.eye(17)}</div>
+        <div style={{flex:1,textAlign:"left"}}><div style={{fontSize:15,fontWeight:600,color:luc?"#34d399":"rgba(255,255,255,.5)"}}>清醒梦</div><div style={{fontSize:12,color:"rgba(255,255,255,.18)",marginTop:1}}>我意识到自己在做梦</div></div>
+        <div style={{width:42,height:24,borderRadius:12,background:luc?"#10b981":"rgba(255,255,255,.07)",padding:2,display:"flex",alignItems:"center",justifyContent:luc?"flex-end":"flex-start",transition:"all .2s"}}><div style={{width:20,height:20,borderRadius:10,background:"white",transition:"all .2s"}}/></div>
+      </B>
+      <div><div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.5)",marginBottom:10}}>梦境元素</div><div style={{display:"flex",flexWrap:"wrap",gap:7}}>{TAGS.map(t=>{const a=tags.includes(t.e);return<B key={t.e} onClick={()=>tog(t.e)} style={{padding:"7px 13px",borderRadius:11,background:a?"rgba(99,102,241,.1)":"rgba(255,255,255,.02)",border:a?"1px solid rgba(99,102,241,.22)":"1px solid rgba(255,255,255,.04)",color:a?"#a5b4fc":"rgba(255,255,255,.32)",fontSize:13,display:"flex",alignItems:"center",gap:5,transition:"all .15s"}}><span>{t.e}</span> {t.l}</B>})}</div></div>
+      <B onClick={()=>onDone({tags,isLucid:luc})} style={{width:"100%",padding:17,borderRadius:20,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 6px 28px rgba(99,102,241,.3)",marginTop:4}}>完成 ✓</B>
+      <B onClick={()=>onDone({tags:[],isLucid:false})} style={{background:"none",color:"rgba(255,255,255,.2)",fontSize:14,padding:6}}>跳过</B>
     </div>
   </div>;
 }
 
-/* ════════════════════════════════════════
-   JOURNAL — calendar + entries + stats
-   ════════════════════════════════════════ */
-function Journal({entries,sel,onSel,onTap,onRec,onSet,stk}){
-  const wk=weekOf(sel),dkk=dk(sel),tdk=dk(now());
-  const dayE=entries.filter(e=>e.dk===dkk);
-  const bd={};entries.forEach(e=>{bd[e.dk]=(bd[e.dk]||0)+1});
-  const tot=entries.length,luc=entries.filter(e=>e.isLucid).length;
-  const avg=tot?(entries.reduce((s,e)=>s+(e.clarity||3),0)/tot).toFixed(1):"—";
-  const hr=now().getHours();
-
-  return <div style={{minHeight:"100vh",minHeight:"100dvh",background:"linear-gradient(180deg,#060a14,#0a1020 50%,#0c1428)",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:120}}>
-    <BG/>
-    <div style={{position:"relative",zIndex:2}}>
-      {/* header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 22px 0"}}>
-        <h1 style={{fontSize:28,fontWeight:800,margin:0,letterSpacing:-.5,color:"rgba(255,255,255,.9)"}}>梦境日记</h1>
-        <Btn onClick={onSet} style={{width:38,height:38,borderRadius:19,background:"rgba(255,255,255,.04)",color:"rgba(255,255,255,.35)",display:"flex",alignItems:"center",justifyContent:"center"}}>{IC.gear(17)}</Btn>
+/* ══ MONTH VIEW ══ */
+function Month({entries:es,onBack,onEntry}){
+  const[m,setM]=useState(new Date());const days=monthDays(m),bd={};es.forEach(e=>{bd[e.dk]=(bd[e.dk]||0)+1});
+  const prev=()=>{const d=new Date(m);d.setMonth(d.getMonth()-1);setM(d)};
+  const next=()=>{const d=new Date(m);d.setMonth(d.getMonth()+1);setM(d)};
+  return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:40}}>
+    <div style={{padding:"8px 16px 16px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    <div style={{padding:"0 20px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><B onClick={prev} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:20,padding:8}}>‹</B><span style={{fontSize:18,fontWeight:700,color:"rgba(255,255,255,.85)"}}>{m.getFullYear()}年{m.getMonth()+1}月</span><B onClick={next} style={{background:"none",color:"rgba(255,255,255,.4)",fontSize:20,padding:8}}>›</B></div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:2,marginBottom:8}}>{WK.map(w=><span key={w} style={{fontSize:12,color:"rgba(255,255,255,.25)",padding:4}}>{w}</span>)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center",gap:2}}>
+        {days.map((d,i)=>{if(!d)return<div key={i}/>;const k=dk(d),h=bd[k]>0,iT=k===dk(now());
+          return<B key={i} onClick={()=>{if(h){const x=es.filter(e=>e.dk===k);if(x.length)onEntry(x[0])}}} style={{width:"100%",aspectRatio:"1",borderRadius:12,background:h?"rgba(99,102,241,.1)":"transparent",border:iT?"1px solid rgba(99,102,241,.3)":"1px solid transparent",color:h?"#a5b4fc":iT?"#818cf8":"rgba(255,255,255,.4)",fontSize:14,fontWeight:h?700:400,display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>{d.getDate()}{h&&<span style={{position:"absolute",bottom:3,width:4,height:4,borderRadius:2,background:"#818cf8"}}/>}</B>
+        })}
       </div>
-
-      {/* stats */}
-      <div style={{display:"flex",gap:8,padding:"14px 16px 0"}}>
-        {[{v:stk,l:"连续天数",e:"🔥",a:stk>0?"#fbbf24":null},{v:avg,l:"平均清晰度",e:"✦"},{v:luc,l:"清醒梦",e:"👁",a:luc>0?"#34d399":null}].map((s,i)=>
-          <div key={i} style={{flex:1,padding:"12px 14px",borderRadius:16,background:s.a?s.a+"10":"rgba(255,255,255,.02)",border:`1px solid ${s.a?s.a+"25":"rgba(255,255,255,.04)"}`}}>
-            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><span style={{fontSize:14}}>{s.e}</span><span style={{fontSize:20,fontWeight:800,color:s.a||"rgba(255,255,255,.6)"}}>{s.v}</span></div>
-            <span style={{fontSize:10,color:"rgba(255,255,255,.25)"}}>{s.l}</span>
-          </div>
-        )}
-      </div>
-
-      {/* calendar */}
-      <div style={{margin:"14px 16px 0",padding:"12px 6px 8px",borderRadius:18,background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.04)"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",textAlign:"center"}}>
-          {wk.map((d,i)=>{const k=dk(d),s=k===dkk,t=k===tdk,h=bd[k]>0;return(
-            <Btn key={i} onClick={()=>onSel(new Date(d))} style={{background:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"4px 0",color:"inherit"}}>
-              <span style={{fontSize:11,fontWeight:500,color:s?"rgba(255,255,255,.85)":"rgba(255,255,255,.25)"}}>{WK[i]}</span>
-              <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:600,background:s?"linear-gradient(135deg,#6366f1,#818cf8)":"transparent",color:s?"white":t?"#818cf8":"rgba(255,255,255,.55)",transition:"all .2s"}}>{d.getDate()}</span>
-              <span style={{width:4,height:4,borderRadius:2,background:h?"#818cf8":"transparent"}}/>
-            </Btn>
-          )})}
-        </div>
-      </div>
-
-      {/* entries */}
-      <div style={{padding:"14px 20px 0"}}>
-        <div style={{fontSize:14,color:"rgba(255,255,255,.35)",fontWeight:500,marginBottom:12}}>{fmtD(sel)}{dayE.length===0&&<span style={{color:"rgba(255,255,255,.15)",marginLeft:8}}>暂无记录</span>}</div>
-
-        {dayE.map(en=><div key={en.id} onClick={()=>onTap(en)} style={{background:"rgba(255,255,255,.025)",borderRadius:18,marginBottom:12,border:"1px solid rgba(255,255,255,.04)",cursor:"pointer",overflow:"hidden"}}>
-          <div style={{padding:"14px 16px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,.8)"}}>{en.time}</span>
-                {en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}
-              </div>
-              <div style={{display:"flex",gap:2}}>{Array.from({length:en.clarity||3}).map((_,i)=><div key={i} style={{width:5,height:5,borderRadius:3,background:"rgba(99,102,241,.45)"}}/>)}</div>
-            </div>
-            <p style={{fontSize:13,color:"rgba(255,255,255,.35)",lineHeight:1.6,margin:0,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{en.text}</p>
-            {en.tags&&en.tags.length>0&&<div style={{marginTop:8,display:"flex",gap:4}}>{en.tags.map(t=><span key={t} style={{fontSize:15}}>{t}</span>)}</div>}
-          </div>
-        </div>)}
-
-        {dayE.length===0&&<div style={{textAlign:"center",padding:"36px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
-          <div style={{opacity:.1,fontSize:44}}>🌙</div>
-          <p style={{fontSize:14,color:"rgba(255,255,255,.12)",lineHeight:1.6,margin:0}}>醒来时记得把最清晰的画面记录下来</p>
-        </div>}
-      </div>
-
-      {/* evening card */}
-      {hr>=20&&<div style={{margin:"8px 16px",padding:"16px 18px",borderRadius:18,background:"linear-gradient(135deg,rgba(99,102,241,.05),rgba(139,92,246,.03))",border:"1px solid rgba(99,102,241,.08)"}}>
-        <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.6)",marginBottom:6}}>💭 入睡前提醒</div>
-        <div style={{fontSize:13,color:"rgba(255,255,255,.3)",lineHeight:1.6}}>躺下后对自己说：<br/>"今晚我会意识到自己在做梦。"</div>
-      </div>}
     </div>
-
-    {/* FAB */}
-    <Btn onClick={onRec} style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,20px) + 20px)",right:20,zIndex:100,width:58,height:58,borderRadius:19,background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"white",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 28px rgba(99,102,241,.4)",fontSize:26,lineHeight:1}}>+</Btn>
   </div>;
 }
 
-/* ════════════════════════════════════════
-   DETAIL
-   ════════════════════════════════════════ */
-function Detail({entry:en,onBack}){
-  return <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:40}}>
-    <div style={{padding:"8px 16px 12px"}}><Btn onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:16}}>{IC.back(20)} 返回</Btn></div>
+/* ══ DETAIL ══ */
+function Detail({entry:en,onBack,apiUrl}){
+  const vs=en.videoUrl?(en.videoUrl.startsWith("http")?en.videoUrl:`${apiUrl}${en.videoUrl}`):null;
+  return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:40}}>
+    <div style={{padding:"8px 16px 12px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
+    {vs&&<div style={{padding:"0 14px 14px"}}><video src={vs} controls playsInline style={{width:"100%",borderRadius:18,background:"#000"}}/></div>}
     <div style={{padding:"0 22px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <span style={{fontSize:14,color:"rgba(255,255,255,.25)"}}>{en.date} {en.time}</span>
-        {en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:18}}>
-        <span style={{fontSize:12,color:"rgba(255,255,255,.25)",marginRight:6}}>清晰度</span>
-        {Array.from({length:5}).map((_,i)=><div key={i} style={{width:7,height:7,borderRadius:4,background:i<(en.clarity||3)?"#818cf8":"rgba(255,255,255,.06)"}}/>)}
-      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}><span style={{fontSize:14,color:"rgba(255,255,255,.25)"}}>{en.date} {en.time}</span>{en.isLucid&&<span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:"rgba(16,185,129,.1)",color:"#34d399"}}>清醒梦</span>}</div>
       <div style={{fontSize:16,color:"rgba(255,255,255,.6)",lineHeight:1.9,marginBottom:20,WebkitUserSelect:"text",userSelect:"text"}}>{en.text}</div>
-      {en.tags&&en.tags.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20}}>{en.tags.map(t=><span key={t} style={{fontSize:22}}>{t}</span>)}</div>}
+      {en.tags?.length>0&&<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:20}}>{en.tags.map(t=><span key={t} style={{fontSize:22}}>{t}</span>)}</div>}
+      {en.taskId&&<div style={{padding:14,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)"}}><div style={{fontSize:12,color:"rgba(255,255,255,.25)",marginBottom:6}}>视频状态</div><div style={{fontSize:14,color:en.status==="completed"?"#34d399":en.status==="failed"?"#ef4444":"#818cf8",fontWeight:600}}>{en.status==="completed"?"✅ 已生成":en.status==="failed"?"❌ 失败":"⏳ "+en.status}</div></div>}
     </div>
   </div>;
 }
 
-/* ════════════════════════════════════════
-   SETTINGS
-   ════════════════════════════════════════ */
-function Settings({cfg,onSave,onBack,onExport}){
-  const[f,setF]=useState({...cfg});
+/* ══ SETTINGS ══ */
+function Settings({cfg,onSave,onBack,onExport,entries:es}){
+  const[f,setF]=useState({...cfg});const[testing,setTesting]=useState(false);const[tr,setTr]=useState(null);
   const u=(k,v)=>setF({...f,[k]:v});
-  return <div style={{minHeight:"100vh",minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,40px)"}}>
-    <div style={{padding:"8px 16px 16px"}}><Btn onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:16}}>{IC.back(20)} 返回</Btn></div>
+  const test=async()=>{if(!f.apiUrl){setTr({ok:false,m:"请先填写服务器地址"});return}setTesting(true);setTr(null);try{const r=await fetch(`${f.apiUrl.replace(/\/$/,"")}/api/tasks?page=1&per_page=1`,{signal:AbortSignal.timeout(8000)});setTr(r.ok?{ok:true,m:"✅ 连接成功！"}:{ok:false,m:`❌ 错误 (${r.status})`})}catch(e){setTr({ok:false,m:"❌ 无法连接"})}setTesting(false)};
+
+  return <div style={{minHeight:"100dvh",background:"#060a14",paddingTop:"env(safe-area-inset-top,48px)",paddingBottom:"env(safe-area-inset-bottom,40px)"}}>
+    <div style={{padding:"8px 16px 16px"}}><B onClick={onBack} style={{background:"none",color:"#818cf8",display:"flex",alignItems:"center",gap:2,fontSize:15}}>{Ic.back(20)} 返回</B></div>
     <div style={{padding:"0 22px"}}>
-      <h1 style={{fontSize:26,fontWeight:800,marginBottom:24}}>设置</h1>
+      <h1 style={{fontSize:24,fontWeight:800,marginBottom:20}}>设置</h1>
 
-      <div style={{marginBottom:28,padding:"18px 20px",borderRadius:18,background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.04)"}}>
-        <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.6)",marginBottom:6}}>🎬 视频生成（可选）</div>
-        <div style={{fontSize:13,color:"rgba(255,255,255,.3)",lineHeight:1.6,marginBottom:16}}>如果你部署了 Dream-to-Video 后端服务器，可以在这里配置。没有服务器也不影响梦境记录功能。</div>
-
-        {[{k:"apiUrl",l:"服务器地址",ph:"http://your-server:8080"},{k:"apiKey",l:"API Key",ph:"sk-ant-xxxxx",type:"password"}].map(({k,l,ph,type})=>
-          <div key={k} style={{marginBottom:14}}>
-            <label style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6,display:"block"}}>{l}</label>
-            <input value={f[k]||""} onChange={e=>u(k,e.target.value)} placeholder={ph} type={type} style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:14,padding:"12px 16px",color:"white",fontSize:15,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-          </div>
-        )}
-
-        <div style={{marginBottom:0}}>
-          <label style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:8,display:"block"}}>AI 提供商</label>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {[["claude","Claude"],["openai","GPT-4o"],["openrouter","OpenRouter"],["gemini","Gemini"]].map(([id,n])=>
-              <Btn key={id} onClick={()=>u("provider",id)} style={{padding:12,borderRadius:14,border:"1px solid",borderColor:f.provider===id?"rgba(99,102,241,.35)":"rgba(255,255,255,.05)",background:f.provider===id?"rgba(99,102,241,.08)":"rgba(255,255,255,.015)",fontSize:14,fontWeight:600,color:f.provider===id?"#a5b4fc":"rgba(255,255,255,.35)",transition:"all .15s"}}>{n}</Btn>
-            )}
-          </div>
+      <div style={{padding:"16px 18px",borderRadius:18,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:20}}>
+        <div style={{fontSize:13,fontWeight:600,color:"rgba(255,255,255,.4)",marginBottom:10}}>梦境统计</div>
+        <div style={{display:"flex",gap:16}}>
+          <div><span style={{fontSize:22,fontWeight:800,color:"rgba(255,255,255,.7)"}}>{es.length}</span><span style={{fontSize:12,color:"rgba(255,255,255,.25)",marginLeft:4}}>总记录</span></div>
+          <div><span style={{fontSize:22,fontWeight:800,color:streak(es)>0?"#fbbf24":"rgba(255,255,255,.3)"}}>{streak(es)}</span><span style={{fontSize:12,color:"rgba(255,255,255,.25)",marginLeft:4}}>连续天</span></div>
+          <div><span style={{fontSize:22,fontWeight:800,color:es.filter(e=>e.isLucid).length>0?"#34d399":"rgba(255,255,255,.3)"}}>{es.filter(e=>e.isLucid).length}</span><span style={{fontSize:12,color:"rgba(255,255,255,.25)",marginLeft:4}}>清醒梦</span></div>
         </div>
       </div>
 
-      <Btn onClick={()=>{onSave(f);onBack()}} style={{width:"100%",padding:16,borderRadius:18,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 4px 20px rgba(99,102,241,.3)"}}>保存</Btn>
+      <div style={{padding:"18px 18px",borderRadius:18,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",marginBottom:20}}>
+        <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,.55)",marginBottom:4}}>🎬 视频生成（可选）</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.22)",lineHeight:1.5,marginBottom:16}}>连接 Dream-to-Video 后端后，梦境文字会自动生成视频。</div>
+        {[{k:"apiUrl",l:"服务器地址",ph:"http://your-server:8080"},{k:"apiKey",l:"Claude API Key",ph:"sk-ant-xxxxx",t:"password"}].map(({k,l,ph,t})=>
+          <div key={k} style={{marginBottom:14}}><label style={{fontSize:11,fontWeight:600,color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6,display:"block"}}>{l}</label><input value={f[k]||""} onChange={e=>u(k,e.target.value)} placeholder={ph} type={t} style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:"12px 14px",color:"white",fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/></div>
+        )}
+        <B onClick={test} disabled={testing} style={{width:"100%",padding:12,borderRadius:12,background:"rgba(255,255,255,.05)",color:"rgba(255,255,255,.6)",fontSize:14,fontWeight:500,marginBottom:4}}>{testing?"测试中...":"🔌 测试连接"}</B>
+        {tr&&<div style={{fontSize:13,color:tr.ok?"#34d399":"#ef4444",padding:"8px 0"}}>{tr.m}</div>}
+      </div>
 
-      <Btn onClick={onExport} style={{width:"100%",padding:14,borderRadius:16,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",color:"rgba(255,255,255,.4)",fontSize:14,fontWeight:500,marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-        {IC.exp(16)} 导出所有梦境记录（JSON）
-      </Btn>
+      <B onClick={()=>{onSave(f);onBack()}} style={{width:"100%",padding:15,borderRadius:16,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"white",fontSize:16,fontWeight:600,boxShadow:"0 4px 20px rgba(99,102,241,.3)"}}>保存设置</B>
+      <B onClick={onExport} style={{width:"100%",padding:13,borderRadius:14,background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.04)",color:"rgba(255,255,255,.35)",fontSize:14,fontWeight:500,marginTop:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{Ic.dl(15)} 导出所有记录</B>
     </div>
   </div>;
 }
 
-/* ════════════════════════════════════════
-   APP
-   ════════════════════════════════════════ */
+/* ══ APP ══ */
 function App(){
-  const[pg,setPg]=useState("record");
-  const[entries,setEntries]=useState([]);
+  const[pg,setPg]=useState("home");
+  const[es,setEs]=useState([]);
   const[cfg,setCfg]=useState({apiUrl:"",apiKey:"",provider:"claude"});
-  const[sel,setSel]=useState(new Date());
   const[det,setDet]=useState(null);
   const[pend,setPend]=useState("");
+  const[rm,setRm]=useState("voice");
   const[toast,setToast]=useState(null);
 
-  useEffect(()=>{setEntries(LS.get("dr-e",[]));setCfg(LS.get("dr-c",{apiUrl:"",apiKey:"",provider:"claude"}))},[]);
+  useEffect(()=>{setEs(LS.g("dr4-e",[]));setCfg(LS.g("dr4-c",{apiUrl:"",apiKey:"",provider:"claude"}))},[]);
 
-  // poll API tasks
   useEffect(()=>{
     if(!cfg.apiUrl)return;
-    const iv=setInterval(()=>{
-      const cur=LS.get("dr-e",[]);
-      const act=cur.filter(e=>e.taskId&&!["completed","failed"].includes(e.status));
-      if(!act.length)return;
-      let ch=false;
-      Promise.all(act.map(e=>
-        fetch(`${cfg.apiUrl}/api/tasks/${e.taskId}`).then(r=>r.ok?r.json():null).then(d=>{
-          if(!d)return;const i=cur.findIndex(x=>x.id===e.id);if(i<0)return;
-          if(d.status!==cur[i].status){cur[i].status=d.status;if(d.video_url)cur[i].videoUrl=d.video_url;ch=true;}
-        }).catch(()=>{})
-      )).then(()=>{if(ch){setEntries([...cur]);LS.set("dr-e",cur)}});
-    },5000);
+    const iv=setInterval(()=>{const cur=LS.g("dr4-e",[]);const act=cur.filter(e=>e.taskId&&!["completed","failed"].includes(e.status));if(!act.length)return;let ch=false;
+    Promise.all(act.map(e=>fetch(`${cfg.apiUrl}/api/tasks/${e.taskId}`).then(r=>r.ok?r.json():null).then(d=>{if(!d)return;const i=cur.findIndex(x=>x.id===e.id);if(i<0)return;if(d.status!==cur[i].status||d.video_url){cur[i].status=d.status;if(d.video_url)cur[i].videoUrl=d.video_url;ch=true}}).catch(()=>{}))).then(()=>{if(ch){setEs([...cur]);LS.s("dr4-e",cur)}})},5000);
     return()=>clearInterval(iv);
   },[cfg.apiUrl]);
 
   const flash=m=>{setToast(m);setTimeout(()=>setToast(null),3000)};
-
   const onRecDone=t=>{setPend(t);setPg("post")};
-
   const onPostDone=meta=>{
     const n=now();
-    const en={id:`d_${Date.now()}`,text:pend,date:fmtD(n),time:`${pad(n.getHours())}:${pad(n.getMinutes())}`,dk:dk(n),clarity:meta.clarity,tags:meta.tags,isLucid:meta.isLucid,status:null,taskId:null,videoUrl:null,createdAt:n.toISOString()};
-    const up=[en,...entries];setEntries(up);LS.set("dr-e",up);
-    setPg("journal");flash("梦境已保存 🌙");
-    // optional: submit to API
-    if(cfg.apiUrl&&cfg.apiKey){
-      fetch(`${cfg.apiUrl}/api/generate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dream_text:pend,api_key:cfg.apiKey,provider:cfg.provider})})
-      .then(r=>r.ok?r.json():null).then(d=>{if(d){en.taskId=d.task_id;en.status=d.status||"pending";setEntries([...up]);LS.set("dr-e",up);flash("视频生成已提交 ✨")}}).catch(()=>{});
-    }
+    const en={id:`d_${Date.now()}`,text:pend,date:fmtD(n),time:`${pad(n.getHours())}:${pad(n.getMinutes())}`,dk:dk(n),tags:meta.tags,isLucid:meta.isLucid,status:null,taskId:null,videoUrl:null,createdAt:n.toISOString()};
+    const up=[en,...es];setEs(up);LS.s("dr4-e",up);setPg("home");flash("梦境已保存 🌙");
+    if(cfg.apiUrl&&cfg.apiKey){fetch(`${cfg.apiUrl}/api/generate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({dream_text:pend,api_key:cfg.apiKey,provider:cfg.provider||"claude"})}).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||"失败"))).then(d=>{en.taskId=d.task_id;en.status=d.status||"pending";setEs([...up]);LS.s("dr4-e",up);flash("视频生成已提交 ✨")}).catch(e=>flash("视频提交: "+e))}
   };
+  const exp=()=>{const b=new Blob([JSON.stringify(es,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`dreams-${dk(now())}.json`;a.click();flash("已导出 "+es.length+" 条")};
 
-  const exportData=()=>{
-    const data=JSON.stringify(entries,null,2);
-    const blob=new Blob([data],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=`dream-journal-${dk(now())}.json`;a.click();
-    URL.revokeObjectURL(url);flash("已导出 "+entries.length+" 条记录");
-  };
-
-  return <>
-    {toast&&<div style={{position:"fixed",top:"env(safe-area-inset-top,50px)",left:20,right:20,zIndex:999,textAlign:"center",padding:"14px 18px",borderRadius:16,background:"rgba(99,102,241,.9)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",color:"white",fontSize:14,fontWeight:500,animation:"fadeUp .3s ease"}}>{toast}</div>}
-
-    {pg==="record"&&<QuickRecord onDone={onRecDone} onJournal={()=>setPg("journal")}/>}
-    {pg==="post"&&<PostRecord text={pend} onDone={onPostDone}/>}
-    {pg==="journal"&&<Journal entries={entries} sel={sel} onSel={setSel} onTap={e=>{setDet(e);setPg("detail")}} onRec={()=>setPg("record")} onSet={()=>setPg("settings")} stk={streak(entries)}/>}
-    {pg==="settings"&&<Settings cfg={cfg} onSave={c=>{setCfg(c);LS.set("dr-c",c)}} onBack={()=>setPg("journal")} onExport={exportData}/>}
-    {pg==="detail"&&det&&<Detail entry={det} onBack={()=>setPg("journal")}/>}
+  return <><Toast msg={toast}/>
+    {pg==="home"&&<Home entries={es} onRec={m=>{setRm(m);setPg("rec")}} onSet={()=>setPg("set")} onEntry={e=>{setDet(e);setPg("det")}} onMonth={()=>setPg("month")}/>}
+    {pg==="rec"&&<Rec mode={rm} onDone={onRecDone} onBack={()=>setPg("home")}/>}
+    {pg==="post"&&<Post text={pend} onDone={onPostDone}/>}
+    {pg==="month"&&<Month entries={es} onBack={()=>setPg("home")} onEntry={e=>{setDet(e);setPg("det")}}/>}
+    {pg==="set"&&<Settings cfg={cfg} entries={es} onSave={c=>{setCfg(c);LS.s("dr4-c",c)}} onBack={()=>setPg("home")} onExport={exp}/>}
+    {pg==="det"&&det&&<Detail entry={det} onBack={()=>setPg("home")} apiUrl={cfg.apiUrl}/>}
   </>;
 }
-
 ReactDOM.createRoot(document.getElementById("R")).render(<App/>);
 </script>
 </body>
